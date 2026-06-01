@@ -1,26 +1,124 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fefcf6; /* 따뜻한 크림/연노랑빛 웜화이트 */
+  --foreground: #1e293b; /* 부드러운 다크네이비 */
+  --primary: #ffc01e;    /* 스쿨버스 옐로우 */
+  --primary-hover: #e5ab17;
+  --secondary: #4f46e5;  /* 비비드 인디고 블루 */
+  --secondary-hover: #4338ca;
+  --accent: #ff4785;     /* 통통 튀는 핑크 */
+  --accent-hover: #e03c73;
+  --success: #10b981;    /* 싱그러운 초록 */
+  --card: #ffffff;
+  --border: #1e293b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-secondary-hover: var(--secondary-hover);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-success: var(--success);
+  --color-card: var(--card);
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Neobrutalist School Cards and Buttons for a fun, tactile feel */
+.school-card {
+  background: white;
+  border: 4px solid var(--border);
+  border-radius: 1.5rem;
+  box-shadow: 6px 6px 0px 0px var(--border);
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.school-card:hover {
+  transform: translate(-3px, -3px);
+  box-shadow: 9px 9px 0px 0px var(--border);
+}
+
+.school-btn-primary {
+  background-color: var(--primary);
+  color: #1e293b;
+  border: 3px solid var(--border);
+  border-radius: 1rem;
+  font-weight: 800;
+  box-shadow: 4px 4px 0px 0px var(--border);
+  transition: all 0.1s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.school-btn-primary:hover {
+  background-color: var(--primary-hover);
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px 0px var(--border);
+}
+
+.school-btn-primary:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px 0px var(--border);
+}
+
+.school-btn-secondary {
+  background-color: var(--secondary);
+  color: white;
+  border: 3px solid var(--border);
+  border-radius: 1rem;
+  font-weight: 800;
+  box-shadow: 4px 4px 0px 0px var(--border);
+  transition: all 0.1s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.school-btn-secondary:hover {
+  background-color: var(--secondary-hover);
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px 0px var(--border);
+}
+
+.school-btn-secondary:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px 0px var(--border);
+}
+
+.school-btn-accent {
+  background-color: var(--accent);
+  color: white;
+  border: 3px solid var(--border);
+  border-radius: 1rem;
+  font-weight: 800;
+  box-shadow: 4px 4px 0px 0px var(--border);
+  transition: all 0.1s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.school-btn-accent:hover {
+  background-color: var(--accent-hover);
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px 0px var(--border);
+}
+
+.school-btn-accent:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px 0px var(--border);
 }
