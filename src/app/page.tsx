@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Sparkles, Trophy, Image as ImageIcon, PlusCircle, Volume2, School, QrCode } from 'lucide-react';
+import { Sparkles, Trophy, Image as ImageIcon, PlusCircle, Volume2, School, QrCode, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import UploadModal from '@/components/UploadModal';
@@ -163,6 +163,41 @@ export default function Home() {
           <p>
             가정에서도 올릴 수 있어요! 학부모 참여 항목으로 올리면 분홍색 예쁜 테두리로 다르게 갤러리에 나타납니다! ✨
           </p>
+        </div>
+
+        {/* CLICK-ON AI SHORTCUT & QR CODE BANNER */}
+        <div className="max-w-4xl mx-auto school-card bg-indigo-50 border-4 border-slate-800 p-5 md:p-6 mb-8 text-slate-800 flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex-1 text-center sm:text-left">
+            <span className="inline-block px-2.5 py-0.5 mb-2 text-xs font-black text-white bg-pink-500 border border-slate-800 rounded-full">
+              챌린지 바로가기 🔗
+            </span>
+            <h3 className="text-xl font-black text-slate-800 mb-1">
+              💻 2026 클릭온 AI 프로그램 참여하기
+            </h3>
+            <p className="text-slate-600 font-bold text-sm leading-relaxed">
+              오른쪽 QR코드를 촬영하거나 바로가기 버튼을 클릭하여 '클릭온 AI' 챌린지 페이지로 이동할 수 있습니다. 
+              챌린지 프로그램을 무사히 완료하고 발급된 수료증이나 인증 사진을 캡처해서 아래 [인증서 올리기]로 자랑해 보세요!
+            </p>
+            <a
+              href="https://aichallenge4all.or.kr/competitions/click-on-ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="school-btn-primary px-4 py-2 mt-4 text-xs inline-flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(30,41,59,1)]"
+            >
+              클릭온 AI 사이트로 가기
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+          
+          {/* Static QR for the external site */}
+          <div className="shrink-0 bg-white border-3 border-slate-800 p-3 rounded-2xl shadow-[3px_3px_0px_0px_rgba(30,41,59,1)]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https%3A%2F%2Faichallenge4all.or.kr%2Fcompetitions%2Fclick-on-ai"
+              alt="클릭온 AI 바로가기 QR"
+              className="w-28 h-28 border-2 border-slate-800 rounded-xl"
+            />
+          </div>
         </div>
 
         {/* 300 ROCKET CHALLENGE WIDGET */}
