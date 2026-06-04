@@ -18,8 +18,16 @@ function maskName(name: string): string {
 // GET /api/certificates - Fetch all certificates (Hybrid Mode)
 export async function GET(request: Request) {
   try {
-    const adminPassword = process.env.ADMIN_PASSWORD || 'naeseong123';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'nsns550';
     const requestPassword = request.headers.get('x-admin-password');
+
+    // If the x-admin-password header is sent, it MUST match the adminPassword
+    if (requestPassword && requestPassword !== adminPassword) {
+      return NextResponse.json(
+        { success: false, error: '관리자 비밀번호가 일치하지 않습니다.' },
+        { status: 401 }
+      );
+    }
     const isAdmin = requestPassword === adminPassword;
 
     if (isSupabaseConfigured && supabase) {
@@ -202,7 +210,7 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     // 1. Verify admin password
-    const adminPassword = process.env.ADMIN_PASSWORD || 'naeseong123';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'nsns550';
     const requestPassword = request.headers.get('x-admin-password');
 
     if (!requestPassword || requestPassword !== adminPassword) {
