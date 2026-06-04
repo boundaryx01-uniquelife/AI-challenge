@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ZoomIn, X, ImageIcon, Calendar, Filter, Sparkles, User, Users } from 'lucide-react';
+import { ZoomIn, X, ImageIcon, Calendar, Filter, Sparkles, User, Users, FileText } from 'lucide-react';
 
 interface Certificate {
   id: string;
@@ -172,13 +172,23 @@ export default function CertificateGallery({ certificates, isLoading }: Certific
                 <div className={`relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-100 border-2 ${
                   isParent ? 'border-pink-500' : 'border-slate-800'
                 }`}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={cert.imageUrl}
-                    alt={`${cert.grade}학년 ${cert.studentName}`}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    loading="lazy"
-                  />
+                  {cert.imageUrl.toLowerCase().endsWith('.pdf') || cert.imageUrl.toLowerCase().includes('.pdf') ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-red-50 p-4 transition-transform duration-300 group-hover:scale-105">
+                      <FileText className="w-12 h-12 text-red-500 mb-1" />
+                      <span className="font-extrabold text-slate-800 text-xs text-center line-clamp-2">
+                        {cert.studentName}의 인증서.pdf
+                      </span>
+                      <span className="text-[9px] text-slate-400 font-bold mt-1">PDF 문서</span>
+                    </div>
+                  ) : (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={cert.imageUrl}
+                      alt={`${cert.grade}학년 ${cert.studentName}`}
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                  )}
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <div className={`p-2 bg-white rounded-full border-2 shadow-[2px_2px_0px_0px_rgba(30,41,59,1)] ${
                       isParent ? 'border-pink-500' : 'border-slate-800'
@@ -244,12 +254,20 @@ export default function CertificateGallery({ certificates, isLoading }: Certific
             <div className={`border-3 rounded-2xl overflow-hidden aspect-[4/3] w-full bg-slate-100 ${
               selectedCert.classNum === 2 ? 'border-pink-500' : 'border-slate-800'
             }`}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={selectedCert.imageUrl}
-                alt={`${selectedCert.grade}학년 ${selectedCert.studentName}`}
-                className="w-full h-full object-contain"
-              />
+              {selectedCert.imageUrl.toLowerCase().endsWith('.pdf') || selectedCert.imageUrl.toLowerCase().includes('.pdf') ? (
+                <iframe
+                  src={selectedCert.imageUrl}
+                  className="w-full h-full border-0 bg-white"
+                  title="인증서 PDF 미리보기"
+                />
+              ) : (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={selectedCert.imageUrl}
+                  alt={`${selectedCert.grade}학년 ${selectedCert.studentName}`}
+                  className="w-full h-full object-contain"
+                />
+              )}
             </div>
 
             {/* Info Row */}

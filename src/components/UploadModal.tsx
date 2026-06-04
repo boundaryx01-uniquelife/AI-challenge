@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Upload, Camera, Loader2, Sparkles, User, Users } from 'lucide-react';
+import { X, Upload, Camera, Loader2, Sparkles, User, Users, FileText } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface UploadModalProps {
@@ -89,8 +89,8 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.startsWith('image/')) {
-        setErrorMessage('이미지 파일(png, jpg, jpeg)만 올릴 수 있어요!');
+      if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+        setErrorMessage('이미지 파일(png, jpg, jpeg) 또는 PDF 파일만 올릴 수 있어요!');
         return;
       }
       setImageFile(file);
@@ -123,12 +123,15 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
     setIsSubmitting(true);
 
     try {
-      // 1. Compress image client-side to safely bypass Vercel 4.5MB file limit
-      setErrorMessage('사진을 최적화 크기로 압축하는 중이에요...');
-      const compressedBlob = await resizeAndCompressImage(imageFile);
-      const compressedFile = new File([compressedBlob], `compressed-${Date.now()}.jpg`, {
-        type: 'image/jpeg',
-      });
+      // 1. Compress image client-side to safely bypass Vercel 4.5MB file limit (bypass for PDF)
+      let fileToSend: File | Blob = imageFile;
+      if (imageFile.type.startsWith('image/')) {
+        setErrorMessage('사진을 최적화 크기로 압축하는 중이에요...');
+        const compressedBlob = await resizeAndCompressImage(imageFile);
+        fileToSend = new File([compressedBlob], `compressed-${Date.now()}.jpg`, {
+          type: 'image/jpeg',
+        });
+      }
 
       setErrorMessage(null); // Clear compression placeholder
 
@@ -137,7 +140,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
       formData.append('grade', grade.toString());
       formData.append('classNum', role.toString()); // map role to classNum
       formData.append('studentName', studentName.trim());
-      formData.append('image', compressedFile);
+      formData.append('image', fileToSend);
 
       // 3. Post to backend
       const response = await fetch('/api/certificates', {
@@ -283,13 +286,13 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
           {/* Image Upload Zone */}
           <div>
             <label className="block text-lg font-extrabold text-slate-800 mb-2">
-              4. 인증서 사진을 찍거나 올려줘요! 📷
+              4. 인증서 사진이나 PDF를 올려줘요! 📷📄
             </label>
             <input
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
-              accept="image/*"
+              accept="image/*,application/pdf"
               className="hidden"
             />
 
@@ -302,18 +305,30 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                 <div className="p-3 bg-white border-2 border-slate-800 rounded-full shadow-[2px_2px_0px_0px_rgba(30,41,59,1)] mb-3">
                   <Camera className="w-8 h-8 text-slate-800" />
                 </div>
-                <span className="font-extrabold text-lg text-slate-800">여기를 눌러 사진 선택</span>
-                <span className="text-sm text-slate-400 mt-1">파일 선택 또는 카메라 촬영</span>
+                <span className="font-extrabold text-lg text-slate-800">여기를 눌러 파일 선택</span>
+                <span className="text-sm text-slate-400 mt-1">이미지 선택 또는 PDF 파일 업로드</span>
               </button>
             ) : (
               <div className="relative border-4 border-slate-800 p-3 bg-white rounded-2xl shadow-[4px_4px_0px_0px_rgba(30,41,59,1)]">
                 <div className="aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-100 relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={previewUrl}
-                    alt="인증서 미리보기"
-                    className="w-full h-full object-cover"
-                  />
+                  {imageFile && imageFile.type === 'application/pdf' ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-red-50 p-4">
+                      <FileText className="w-16 h-16 text-red-500 mb-2" />
+                      <span className="font-extrabold text-slate-800 text-sm text-center break-all">
+                        {imageFile.name}
+                      </span>
+                      <span className="text-xs text-slate-400 mt-1">
+                        PDF 문서 ({(imageFile.size / 1024).toFixed(1)} KB)
+                      </span>
+                    </div>
+                  ) : (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={previewUrl}
+                      alt="인증서 미리보기"
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                 </div>
                 <button
                   type="button"

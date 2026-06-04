@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Sparkles, Trophy, Image as ImageIcon, PlusCircle, Volume2, School, QrCode, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
@@ -342,6 +343,16 @@ export default function Home() {
         isOpen={isQRModalOpen}
         onClose={() => setIsQRModalOpen(false)}
       />
+      {/* Footer / Admin Shortcut Link */}
+      <footer className="max-w-6xl mx-auto mt-12 pt-6 border-t-2 border-dashed border-slate-200 text-center flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-bold text-slate-400">
+        <span>© 2026 내성초등학교. All rights reserved.</span>
+        <Link
+          href="/admin"
+          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-300 hover:border-slate-800 rounded-lg transition-all flex items-center gap-1 active:translate-y-0.5"
+        >
+          <span>⚙️ 관리자 모드</span>
+        </Link>
+      </footer>
     </main>
   );
 }

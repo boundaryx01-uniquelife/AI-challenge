@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
-import { writeFile, mkdir } from 'fs/promises';
+import { writeFile, mkdir, unlink } from 'fs/promises';
 import path from 'path';
 
 // Helper function to mask student name for privacy
@@ -16,8 +16,12 @@ function maskName(name: string): string {
 }
 
 // GET /api/certificates - Fetch all certificates (Hybrid Mode)
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const adminPassword = process.env.ADMIN_PASSWORD || 'naeseong123';
+    const requestPassword = request.headers.get('x-admin-password');
+    const isAdmin = requestPassword === adminPassword;
+
     if (isSupabaseConfigured && supabase) {
       // Fetch from Supabase Cloud PostgreSQL
       const { data, error } = await supabase
@@ -32,7 +36,7 @@ export async function GET() {
         id: item.id,
         grade: item.grade,
         classNum: item.class_num, // 1 = student, 2 = parent
-        studentName: maskName(item.student_name),
+        studentName: isAdmin ? item.student_name : maskName(item.student_name),
         imageUrl: item.image_url,
         createdAt: item.created_at,
       }));
@@ -46,12 +50,12 @@ export async function GET() {
         },
       });
 
-      const maskedCertificates = certificates.map((cert) => ({
+      const adaptedCertificates = certificates.map((cert) => ({
         ...cert,
-        studentName: maskName(cert.studentName),
+        studentName: isAdmin ? cert.studentName : maskName(cert.studentName),
       }));
 
-      return NextResponse.json({ success: true, data: maskedCertificates });
+      return NextResponse.json({ success: true, data: adaptedCertificates });
     }
   } catch (error) {
     console.error('Failed to fetch certificates:', error);
@@ -189,6 +193,110 @@ export async function POST(request: Request) {
     console.error('Failed to create certificate:', error);
     return NextResponse.json(
       { success: false, error: error.message || '인증서 등록 중 에러가 발생했습니다.' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/certificates - Delete a certificate (Admin Only)
+export async function DELETE(request: Request) {
+  try {
+    // 1. Verify admin password
+    const adminPassword = process.env.ADMIN_PASSWORD || 'naeseong123';
+    const requestPassword = request.headers.get('x-admin-password');
+
+    if (!requestPassword || requestPassword !== adminPassword) {
+      return NextResponse.json(
+        { success: false, error: '관리자 비밀번호가 일치하지 않습니다.' },
+        { status: 401 }
+      );
+    }
+
+    // 2. Parse certificate ID
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: '삭제할 인증서 ID가 유효하지 않습니다.' },
+        { status: 400 }
+      );
+    }
+
+    let imageUrl = '';
+
+    // 3. Find certificate to get image path/URL
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('certificates')
+        .select('image_url')
+        .eq('id', id)
+        .single();
+
+      if (error || !data) {
+        console.error('Failed to find certificate in Supabase:', error);
+        return NextResponse.json(
+          { success: false, error: '존재하지 않는 인증서입니다.' },
+          { status: 404 }
+        );
+      }
+      imageUrl = data.image_url;
+    } else {
+      const cert = await prisma.certificate.findUnique({
+        where: { id },
+      });
+
+      if (!cert) {
+        return NextResponse.json(
+          { success: false, error: '존재하지 않는 인증서입니다.' },
+          { status: 404 }
+        );
+      }
+      imageUrl = cert.imageUrl;
+    }
+
+    // 4. Delete file from storage
+    if (imageUrl) {
+      const filename = imageUrl.substring(imageUrl.lastIndexOf('/') + 1);
+
+      if (isSupabaseConfigured && supabase) {
+        // Delete from Supabase Storage
+        const { error: storageError } = await supabase.storage
+          .from('certificates')
+          .remove([filename]);
+
+        if (storageError) {
+          console.error('Supabase storage delete warning:', storageError);
+          // Don't fail the request, we should still clean up DB records
+        }
+      } else {
+        // Delete from local file system
+        const filePath = path.join(process.cwd(), 'public', 'uploads', filename);
+        await unlink(filePath).catch((err) => {
+          console.error('Local file delete warning:', err);
+        });
+      }
+    }
+
+    // 5. Delete record from database
+    if (isSupabaseConfigured && supabase) {
+      const { error: dbError } = await supabase
+        .from('certificates')
+        .delete()
+        .eq('id', id);
+
+      if (dbError) throw dbError;
+    } else {
+      await prisma.certificate.delete({
+        where: { id },
+      });
+    }
+
+    return NextResponse.json({ success: true, message: '인증서가 성공적으로 삭제되었습니다.' });
+  } catch (error: any) {
+    console.error('Failed to delete certificate:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || '인증서 삭제 중 에러가 발생했습니다.' },
       { status: 500 }
     );
   }
