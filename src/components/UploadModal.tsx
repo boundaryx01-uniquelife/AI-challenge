@@ -10,6 +10,61 @@ interface UploadModalProps {
   onUploadSuccess: () => void;
 }
 
+// Helper to resize and compress image client-side to bypass server upload limitations
+function resizeAndCompressImage(file: File, maxWidth = 1200, maxHeight = 900): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Calculate proportional scale
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas context could not be acquired'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert canvas back to jpeg blob with 80% compression quality
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error('Image compression conversion failed'));
+            }
+          },
+          'image/jpeg',
+          0.8
+        );
+      };
+    };
+    reader.onerror = (error) => reject(error);
+  });
+}
+
 export default function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalProps) {
   const [grade, setGrade] = useState<number>(1);
   const [role, setRole] = useState<1 | 2>(1); // 1 = Student, 2 = Parent
@@ -36,11 +91,6 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
     if (file) {
       if (!file.type.startsWith('image/')) {
         setErrorMessage('이미지 파일(png, jpg, jpeg)만 올릴 수 있어요!');
-        return;
-      }
-      // Maximum 10MB file limit
-      if (file.size > 10 * 1024 * 1024) {
-        setErrorMessage('사진 크기가 너무 커요! 10MB 이하로 올려주세요.');
         return;
       }
       setImageFile(file);
@@ -73,12 +123,23 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
     setIsSubmitting(true);
 
     try {
+      // 1. Compress image client-side to safely bypass Vercel 4.5MB file limit
+      setErrorMessage('사진을 최적화 크기로 압축하는 중이에요...');
+      const compressedBlob = await resizeAndCompressImage(imageFile);
+      const compressedFile = new File([compressedBlob], `compressed-${Date.now()}.jpg`, {
+        type: 'image/jpeg',
+      });
+
+      setErrorMessage(null); // Clear compression placeholder
+
+      // 2. Prepare FormData
       const formData = new FormData();
       formData.append('grade', grade.toString());
       formData.append('classNum', role.toString()); // map role to classNum
       formData.append('studentName', studentName.trim());
-      formData.append('image', imageFile);
+      formData.append('image', compressedFile);
 
+      // 3. Post to backend
       const response = await fetch('/api/certificates', {
         method: 'POST',
         body: formData,
@@ -271,7 +332,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
 
           {/* Error Message */}
           {errorMessage && (
-            <div className="p-3 border-2 border-slate-800 bg-red-100 text-red-700 font-extrabold rounded-xl animate-bounce">
+            <div className="p-3 border-2 border-slate-800 bg-red-100 text-red-700 font-extrabold rounded-xl">
               ⚠️ {errorMessage}
             </div>
           )}
@@ -285,7 +346,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
             {isSubmitting ? (
               <>
                 <Loader2 className="w-6 h-6 mr-2 animate-spin inline" />
-                인증서 올리는 중...
+                처리 중...
               </>
             ) : (
               <>
