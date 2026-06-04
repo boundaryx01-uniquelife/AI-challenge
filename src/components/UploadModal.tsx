@@ -145,7 +145,15 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
         body: formData,
       });
 
-      const result = await response.json();
+      const responseText = await response.text();
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse server response as JSON. Raw response:', responseText);
+        const errorSnippet = responseText.trim().substring(0, 120);
+        throw new Error(`서버에서 오류가 발생했습니다. (상태코드: ${response.status}) 내용: ${errorSnippet}`);
+      }
 
       if (!response.ok || !result.success) {
         throw new Error(result.error || '인증서 등록에 실패했습니다.');
