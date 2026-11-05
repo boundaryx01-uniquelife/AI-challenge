@@ -97,3 +97,15 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY = 내 Supabase 프로젝트 anon public API Key
    npm run dev
    ```
    이후 `http://localhost:3000`에서 브라우저로 갤러리 및 로켓 위젯 가동을 검증하실 수 있습니다.
+
+---
+
+## ☁️ 배포 (Netlify) 및 환경 변수
+
+- 빌드: `npm ci && npm run build` (`netlify.toml`), 플러그인 `@netlify/plugin-nextjs`
+- Netlify → Site settings → Environment variables 에 등록:
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  - `ADMIN_PASSWORD`
+  - (선택, 서버 전용) `SUPABASE_SERVICE_ROLE_KEY`
+- 로컬: 루트에 `.env.local` 생성(git 제외) 후 `npm run dev`
