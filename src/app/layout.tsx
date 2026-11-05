@@ -9,7 +9,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "내성초 클릭온 AI 마스터 챌린지 갤러리 & 실시간 랭킹",
+  title: "내성초 클릭온 AI 마스터 챌린지 2기",
   description: "내성초등학교 학생들이 클릭온 AI 프로그램 참여 인증서를 올리고, 실시간으로 학급별/개인별 참여 순위를 확인하는 공간입니다.",
   applicationName: "내성초 클릭온 AI 챌린지",
   keywords: ["내성초등학교", "클릭온 AI", "AI 챌린지", "인증서", "랭킹"],

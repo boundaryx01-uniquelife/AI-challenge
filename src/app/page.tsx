@@ -1,358 +1,341 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Sparkles, Trophy, Image as ImageIcon, PlusCircle, Volume2, School, QrCode, ExternalLink } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import confetti from 'canvas-confetti';
-import UploadModal from '@/components/UploadModal';
-import CertificateGallery from '@/components/CertificateGallery';
-import RankingDashboard from '@/components/RankingDashboard';
-import QRCodeModal from '@/components/QRCodeModal';
+import {
+  motion,
+  useInView,
+  useReducedMotion,
+  animate,
+  useMotionValue,
+  useTransform,
+} from 'framer-motion';
+import { ArrowRight, ExternalLink, Sparkles } from 'lucide-react';
+import { SEASON, daysLeft } from '@/lib/season';
 
-interface Certificate {
-  id: string;
-  grade: number;
-  classNum: number;
-  studentName: string;
-  imageUrl: string;
-  createdAt: string;
-}
+// 숫자 카운트업 (뷰포트 진입 시 1회)
+function CountUp({ to, suffix = '' }: { to: number; suffix?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const inView = useInView(ref, { once: true });
+  const reduce = useReducedMotion();
+  const mv = useMotionValue(0);
+  const text = useTransform(mv, (v) => `${Math.round(v)}${suffix}`);
 
-interface ClassRanking {
-  grade: number;
-  count: number;
-}
-
-interface StudentRanking {
-  grade: number;
-  classNum: number;
-  studentName: string;
-  count: number;
-}
-
-export default function Home() {
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [isQRModalOpen, setIsQRModalOpen] = useState<boolean>(false);
-  const [certificates, setCertificates] = useState<Certificate[]>([]);
-  const [classRankings, setClassRankings] = useState<ClassRanking[]>([]);
-  const [studentRankings, setStudentRankings] = useState<StudentRanking[]>([]);
-  const [activeTab, setActiveTab] = useState<'ranking' | 'gallery'>('ranking');
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-
-  // Fetch all live data (certificates + rankings)
-  const fetchLiveData = useCallback(async (showLoading = false) => {
-    if (showLoading) setIsLoading(true);
-    try {
-      const [certRes, rankRes] = await Promise.all([
-        fetch('/api/certificates'),
-        fetch('/api/rankings'),
-      ]);
-
-      if (!certRes.ok || !rankRes.ok) {
-        throw new Error('데이터를 가져오는 데 실패했습니다.');
-      }
-
-      const certResult = await certRes.json();
-      const rankResult = await rankRes.json();
-
-      if (certResult.success) {
-        setCertificates(certResult.data);
-      }
-      if (rankResult.success) {
-        setClassRankings(rankResult.data.classRankings);
-        setStudentRankings(rankResult.data.studentRankings);
-      }
-    } catch (error) {
-      console.error('Error fetching live data:', error);
-    } finally {
-      if (showLoading) setIsLoading(false);
+  useEffect(() => {
+    if (!inView) return;
+    if (reduce) {
+      mv.set(to);
+      return;
     }
+    const controls = animate(mv, to, { duration: 1.6, ease: 'easeOut' });
+    return () => controls.stop();
+  }, [inView, reduce, to, mv]);
+
+  return <motion.span ref={ref}>{text}</motion.span>;
+}
+
+// 별 배경 (SSR/CSR 불일치 방지를 위해 마운트 후 생성)
+function Stars() {
+  const [stars, setStars] = useState<
+    { x: number; y: number; s: number; d: number; t: number }[]
+  >([]);
+  useEffect(() => {
+    setStars(
+      Array.from({ length: 70 }, () => ({
+        x: Math.random() * 100,
+        y: Math.random() * 100,
+        s: 1 + Math.random() * 2.5,
+        d: Math.random() * 3,
+        t: 2 + Math.random() * 3,
+      }))
+    );
   }, []);
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
+      {stars.map((st, i) => (
+        <motion.span
+          key={i}
+          className="absolute rounded-full bg-white"
+          style={{ left: `${st.x}%`, top: `${st.y}%`, width: st.s, height: st.s }}
+          animate={{ opacity: [0.2, 1, 0.2] }}
+          transition={{ duration: st.t, delay: st.d, repeat: Infinity }}
+        />
+      ))}
+    </div>
+  );
+}
 
-  // Initial loading & polling
-  useEffect(() => {
-    fetchLiveData(true);
+const CHANGES = [
+  {
+    badge: 'NEW',
+    title: '신규 프로그램 10개',
+    body: '시즌1 참가자 의견을 반영해 난이도를 다양화했어요.',
+  },
+  {
+    badge: 'UP',
+    title: '44개 프로그램 · 15개 기관',
+    body: 'EBS를 포함한 15개 기관이 참여해요.',
+  },
+  {
+    badge: 'NEW',
+    title: '인증서 랭킹 이벤트',
+    body: '이수 인증서 수량으로 순위를 겨뤄요. 우리 학교 랭킹보드와 딱 맞아요!',
+  },
+  {
+    badge: 'UP',
+    title: '체험·데이터 분야 강화',
+    body: 'AI 활용 체험과 AI 데이터 활용 부문이 더 풍성해졌어요.',
+  },
+];
 
-    const intervalId = setInterval(() => {
-      fetchLiveData(false);
-    }, 3000);
+const UPGRADES = [
+  '3초 상시 갱신 → 10초 갱신(보이는 화면에서만)으로 가볍게',
+  '2기 D-day · 공식 일정 연동',
+  '모션그래픽 인트로 + 달라진 점 안내',
+  '300 로켓 챌린지는 그대로 유지',
+];
 
-    return () => clearInterval(intervalId);
-  }, [fetchLiveData]);
-
-  // Setup loop confetti if target achieved!
-  useEffect(() => {
-    if (certificates.length >= 300) {
-      const interval = setInterval(() => {
-        confetti({
-          particleCount: 50,
-          angle: 60,
-          spread: 55,
-          origin: { x: 0 },
-          colors: ['#ffc01e', '#ff4785', '#10b981'],
-        });
-        confetti({
-          particleCount: 50,
-          angle: 120,
-          spread: 55,
-          origin: { x: 1 },
-          colors: ['#ffc01e', '#ff4785', '#10b981'],
-        });
-      }, 2500);
-      return () => clearInterval(interval);
-    }
-  }, [certificates.length]);
-
-  const handleUploadSuccess = () => {
-    fetchLiveData(false);
-  };
-
-  // Rocket calculations
-  const totalCerts = certificates.length;
-  const targetGoal = 300;
-  const percentCompleted = Math.min(100, Math.floor((totalCerts / targetGoal) * 100));
-  const isGoalAchieved = totalCerts >= targetGoal;
+export default function Intro() {
+  const reduce = useReducedMotion();
+  const dday = useMemo(() => daysLeft(), []);
 
   return (
-    <main className="min-h-screen pb-16 px-4 md:px-8 bg-[#fefcf6]">
-      {/* Top Banner Area */}
-      <div className="max-w-6xl mx-auto pt-8 pb-10">
-        <header className="flex flex-col lg:flex-row items-center justify-between gap-6 bg-indigo-500 border-4 border-slate-800 p-6 md:p-8 rounded-3xl shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] mb-8 text-white relative overflow-hidden">
-          <div className="absolute top-[-20%] right-[-10%] w-60 h-60 bg-yellow-400 rounded-full opacity-20 blur-xl"></div>
-          
-          <div className="flex items-center gap-4 relative z-10 text-center lg:text-left flex-col sm:flex-row">
-            <div className="p-3 bg-yellow-300 border-3 border-slate-800 rounded-2xl shadow-[3px_3px_0px_0px_rgba(30,41,59,1)] flex items-center justify-center shrink-0 mx-auto lg:mx-0">
-              <School className="w-10 h-10 text-slate-800" />
-            </div>
-            <div>
-              <div className="flex items-center justify-center lg:justify-start gap-1 bg-yellow-300/30 text-yellow-300 font-extrabold text-xs px-2.5 py-1 rounded-full border border-yellow-300/40 w-fit mx-auto lg:mx-0 mb-1">
-                <Sparkles className="w-3.5 h-3.5 fill-yellow-400" />
-                <span>내성초 클릭온 AI 챌린지</span>
-              </div>
-              <h1 className="text-3xl md:text-4xl font-black tracking-tight text-slate-50">
-                AI 마스터 챌린지 갤러리
-              </h1>
-              <p className="text-indigo-100 font-bold text-sm md:text-base mt-1.5">
-                로그인 없이 학생과 학부모 모두 쉽고 편하게 참여 인증을 올려봐요! 🚀
-              </p>
-            </div>
-          </div>
+    <main className="relative bg-[#0b1026] text-white overflow-x-hidden">
+      {/* ===== HERO ===== */}
+      <section className="relative min-h-screen flex flex-col items-center justify-center px-6 text-center overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0b1026] via-[#1b1f5e] to-[#3b2a8c]" />
+        <Stars />
 
-          {/* Action Button Set */}
-          <div className="flex flex-wrap justify-center items-center gap-4 relative z-10 shrink-0 w-full lg:w-auto">
-            <button
-              onClick={() => setIsQRModalOpen(true)}
-              className="school-btn-secondary px-5 py-4 text-base md:text-lg flex items-center gap-2"
-            >
-              <QrCode className="w-5 h-5" />
-              <span>QR코드 배포 📱</span>
-            </button>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="school-btn-primary px-6 py-4 text-lg md:text-xl flex items-center gap-2 group animate-pulse hover:animate-none"
-            >
-              <PlusCircle className="w-6 h-6 transition-transform group-hover:rotate-90" />
-              인증서 올리기 📸
-            </button>
-          </div>
-        </header>
+        {/* 떠다니는 행성 */}
+        {!reduce && (
+          <>
+            <motion.div
+              className="absolute -left-24 top-1/4 w-64 h-64 rounded-full bg-gradient-to-br from-pink-400 to-orange-300 opacity-80 blur-[1px]"
+              animate={{ y: [0, -30, 0], rotate: [0, 8, 0] }}
+              transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+              aria-hidden
+            />
+            <motion.div
+              className="absolute -right-16 bottom-1/4 w-44 h-44 rounded-full bg-gradient-to-br from-cyan-300 to-indigo-400 opacity-80"
+              animate={{ y: [0, 24, 0] }}
+              transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+              aria-hidden
+            />
+          </>
+        )}
 
-        {/* Info Notification Area */}
-        <div className="max-w-4xl mx-auto flex items-center gap-3 p-4 bg-yellow-50 border-3 border-slate-800 rounded-2xl shadow-[3px_3px_0px_0px_rgba(30,41,59,1)] mb-8 text-sm font-bold text-slate-800">
-          <Volume2 className="w-5 h-5 shrink-0 text-yellow-600 animate-bounce" />
-          <p>
-            가정에서도 올릴 수 있어요! 학부모 참여 항목으로 올리면 분홍색 예쁜 테두리로 다르게 갤러리에 나타납니다! ✨
-          </p>
-        </div>
+        {/* 발사되는 로켓 */}
+        <motion.div
+          className="absolute bottom-[-80px] left-1/2 text-7xl md:text-8xl select-none"
+          style={{ x: '-50%' }}
+          initial={{ y: 0, opacity: 1 }}
+          animate={reduce ? { y: -260 } : { y: [0, -40, -900], opacity: [1, 1, 0] }}
+          transition={
+            reduce
+              ? { duration: 0 }
+              : { duration: 3.2, times: [0, 0.25, 1], ease: 'easeIn', delay: 0.4 }
+          }
+          aria-hidden
+        >
+          🚀
+        </motion.div>
 
-        {/* CLICK-ON AI SHORTCUT & QR CODE BANNER */}
-        <div className="max-w-4xl mx-auto school-card bg-indigo-50 border-4 border-slate-800 p-5 md:p-6 mb-8 text-slate-800 flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex-1 text-center sm:text-left">
-            <span className="inline-block px-2.5 py-0.5 mb-2 text-xs font-black text-white bg-pink-500 border border-slate-800 rounded-full">
-              챌린지 바로가기 🔗
+        <div className="relative z-10 max-w-3xl">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: reduce ? 0 : 2.4, duration: 0.6 }}
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-yellow-300 text-slate-900 font-black text-sm mb-6"
+          >
+            <Sparkles className="w-4 h-4" />
+            2026 클릭온 AI {SEASON.name} · D-{dday}
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{
+              delay: reduce ? 0 : 2.6,
+              type: 'spring',
+              stiffness: 120,
+              damping: 12,
+            }}
+            className="text-5xl md:text-7xl font-black tracking-tight leading-tight"
+          >
+            내성초
+            <br />
+            <span className="bg-gradient-to-r from-yellow-300 via-pink-400 to-cyan-300 bg-clip-text text-transparent">
+              AI 마스터 챌린지 2기
             </span>
-            <h3 className="text-xl font-black text-slate-800 mb-1">
-              💻 2026 클릭온 AI 프로그램 참여하기
-            </h3>
-            <p className="text-slate-600 font-bold text-sm leading-relaxed">
-              오른쪽 QR코드를 촬영하거나 바로가기 버튼을 클릭하여 '클릭온 AI' 챌린지 페이지로 이동할 수 있습니다. 
-              챌린지 프로그램을 무사히 완료하고 발급된 수료증이나 인증 사진을 캡처해서 아래 [인증서 올리기]로 자랑해 보세요!
-            </p>
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: reduce ? 0 : 3.1, duration: 0.8 }}
+            className="mt-6 text-lg md:text-xl font-bold text-indigo-100"
+          >
+            인증서를 올리고, 로켓을 쏘아 올리고, 랭킹 1위에 도전하세요!
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: reduce ? 0 : 3.4, duration: 0.6 }}
+            className="mt-10 flex flex-wrap items-center justify-center gap-4"
+          >
+            <Link
+              href="/board"
+              className="group inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-yellow-300 text-slate-900 font-black text-xl border-4 border-slate-900 shadow-[5px_5px_0_0_#0f172a] hover:translate-y-0.5 transition"
+            >
+              게시판 입장하기
+              <ArrowRight className="w-6 h-6 transition-transform group-hover:translate-x-1" />
+            </Link>
             <a
-              href="https://aichallenge4all.or.kr/competitions/click-on-ai"
+              href={SEASON.officialUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="school-btn-primary px-4 py-2 mt-4 text-xs inline-flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(30,41,59,1)]"
+              className="inline-flex items-center gap-2 px-6 py-4 rounded-2xl bg-white/10 border-2 border-white/40 font-bold hover:bg-white/20 transition"
             >
-              클릭온 AI 사이트로 가기
-              <ExternalLink className="w-3.5 h-3.5" />
+              공식 클릭온 AI <ExternalLink className="w-4 h-4" />
             </a>
-          </div>
-          
-          {/* Static QR for the external site */}
-          <div className="shrink-0 bg-white border-3 border-slate-800 p-3 rounded-2xl shadow-[3px_3px_0px_0px_rgba(30,41,59,1)]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https%3A%2F%2Faichallenge4all.or.kr%2Fcompetitions%2Fclick-on-ai"
-              alt="클릭온 AI 바로가기 QR"
-              className="w-28 h-28 border-2 border-slate-800 rounded-xl"
-            />
-          </div>
+          </motion.div>
         </div>
 
-        {/* 300 ROCKET CHALLENGE WIDGET */}
-        <div className="max-w-4xl mx-auto school-card bg-white p-6 mb-10 text-left relative overflow-hidden">
-          <div className="absolute top-2 right-2 p-1 px-3 bg-yellow-100 border-2 border-slate-800 rounded-full font-black text-xs text-yellow-700 animate-pulse">
-            목표: {targetGoal}개 🏆
-          </div>
-
-          <h2 className="text-xl font-black text-slate-800 mb-2 flex items-center gap-2">
-            🚀 내성초 AI 마스터 300 로켓 발사대
-          </h2>
-          <p className="text-slate-500 font-bold text-xs md:text-sm mb-6">
-            학교 전체에 올라온 인증서 수만큼 로켓이 하늘 높이 솟구쳐요! 300개가 되면 로켓이 발사됩니다!
-          </p>
-
-          <div className="flex flex-col md:flex-row items-center gap-6">
-            
-            {/* Visual Launchpad (Vertical Tower) */}
-            <div className="w-full md:w-1/3 h-56 bg-slate-50 border-3 border-slate-800 rounded-2xl relative p-2 flex justify-center overflow-hidden">
-              <div className="absolute inset-y-0 left-1/4 border-l-2 border-dashed border-slate-300"></div>
-              <div className="absolute inset-y-0 right-1/4 border-r-2 border-dashed border-slate-300"></div>
-              
-              <div className="absolute right-4 top-2 text-[10px] font-black text-slate-400 border-b border-slate-200 w-12 text-right">300 (완성)</div>
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 border-b border-slate-200 w-12 text-right">150 (반)</div>
-              <div className="absolute right-4 bottom-2 text-[10px] font-black text-slate-400 border-b border-slate-200 w-12 text-right">0 (시작)</div>
-
-              <div className="absolute bottom-0 w-12 bg-gradient-to-t from-indigo-500 to-indigo-300 rounded-b-xl border-t-2 border-slate-800" style={{ height: `${percentCompleted}%` }}></div>
-
-              <motion.div
-                className="absolute w-12 h-12 flex items-center justify-center text-3xl cursor-pointer"
-                style={{ bottom: `calc(${percentCompleted}% - 20px)` }}
-                animate={
-                  isGoalAchieved
-                    ? { y: [-200, -300], scale: [1, 1.5, 0], opacity: [1, 1, 0] }
-                    : {
-                        y: [0, -2, 2, -1, 1, 0],
-                        rotate: [0, -1, 1, -1, 1, 0],
-                      }
-                }
-                transition={
-                  isGoalAchieved
-                    ? { duration: 2.5, ease: 'easeInOut', repeat: Infinity }
-                    : { duration: 0.15, repeat: Infinity, repeatType: 'reverse' }
-                }
-              >
-                🚀
-              </motion.div>
-
-              {isGoalAchieved && (
-                <div className="absolute inset-0 bg-yellow-300/90 flex flex-col items-center justify-center p-4 border-2 border-slate-800 rounded-xl z-10 animate-bounce">
-                  <span className="text-2xl">🌌</span>
-                  <span className="font-black text-slate-800 text-sm text-center">우주선 발사 성공! ⭐️</span>
-                </div>
-              )}
-            </div>
-
-            {/* Progress Text Description */}
-            <div className="flex-1 w-full flex flex-col justify-center">
-              <div className="flex justify-between items-baseline mb-2">
-                <span className="text-2xl font-black text-indigo-600">
-                  {percentCompleted}% 충전 중!
-                </span>
-                <span className="font-extrabold text-slate-700 text-sm">
-                  ({totalCerts} / {targetGoal}개 완료)
-                </span>
-              </div>
-
-              <div className="w-full h-8 bg-slate-100 border-3 border-slate-800 rounded-2xl overflow-hidden relative shadow-[2px_2px_0px_0px_rgba(30,41,59,1)]">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${percentCompleted}%` }}
-                  transition={{ duration: 1, ease: 'easeOut' }}
-                  className="h-full bg-yellow-400 border-r-3 border-slate-800"
-                />
-              </div>
-
-              <div className="mt-4 p-3 bg-slate-50 border-2 border-slate-800 rounded-xl font-extrabold text-slate-700 text-sm">
-                {isGoalAchieved ? (
-                  <span className="text-yellow-600">
-                    🎉 축하합니다! 내성초 친구들의 참여로 300 로켓이 우주로 힘차게 날아올랐습니다! 멋진 AI 챌린지 완성! 🌌
-                  </span>
-                ) : (
-                  <span>
-                    💡 {targetGoal - totalCerts}개의 인증서가 더 채워지면 로켓이 우주로 발사됩니다! 친구들과 함께 올려볼까요?
-                  </span>
-                )}
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        {/* Content Navigation Area */}
-        <div className="flex justify-center border-b-4 border-slate-800 mb-8 max-w-lg mx-auto">
-          <button
-            onClick={() => setActiveTab('ranking')}
-            className={`px-8 py-3 text-lg font-black tracking-wide border-t-4 border-x-4 border-transparent rounded-t-2xl translate-y-[4px] transition-all flex items-center space-x-2 ${
-              activeTab === 'ranking'
-                ? 'bg-[#fefcf6] border-slate-800 text-slate-800 z-10'
-                : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            <Trophy className={`w-5 h-5 ${activeTab === 'ranking' ? 'text-yellow-500 fill-yellow-400' : ''}`} />
-            <span>실시간 랭킹보드</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('gallery')}
-            className={`px-8 py-3 text-lg font-black tracking-wide border-t-4 border-x-4 border-transparent rounded-t-2xl translate-y-[4px] transition-all flex items-center space-x-2 ${
-              activeTab === 'gallery'
-                ? 'bg-[#fefcf6] border-slate-800 text-slate-800 z-10'
-                : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            <ImageIcon className={`w-5 h-5 ${activeTab === 'gallery' ? 'text-indigo-500 fill-indigo-100' : ''}`} />
-            <span>인증 갤러리</span>
-          </button>
-        </div>
-
-        {/* Dynamic Display Area */}
-        <div className="w-full">
-          {activeTab === 'ranking' ? (
-            <RankingDashboard
-              classRankings={classRankings}
-              studentRankings={studentRankings}
-              isLoading={isLoading}
-            />
-          ) : (
-            <CertificateGallery certificates={certificates} isLoading={isLoading} />
-          )}
-        </div>
-      </div>
-
-      {/* Upload Form Modal Popup */}
-      <UploadModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onUploadSuccess={handleUploadSuccess}
-      />
-
-      {/* QR Code Modal Popup */}
-      <QRCodeModal
-        isOpen={isQRModalOpen}
-        onClose={() => setIsQRModalOpen(false)}
-      />
-      {/* Footer / Admin Shortcut Link */}
-      <footer className="max-w-6xl mx-auto mt-12 pt-6 border-t-2 border-dashed border-slate-200 text-center flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-bold text-slate-400">
-        <span>© 2026 내성초등학교. All rights reserved.</span>
-        <Link
-          href="/admin"
-          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-300 hover:border-slate-800 rounded-lg transition-all flex items-center gap-1 active:translate-y-0.5"
+        <motion.div
+          className="absolute bottom-6 text-sm text-indigo-200 font-bold"
+          animate={reduce ? undefined : { y: [0, 8, 0] }}
+          transition={{ duration: 1.6, repeat: Infinity }}
         >
-          <span>⚙️ 관리자 모드</span>
-        </Link>
-      </footer>
+          ▼ 1기와 달라진 점
+        </motion.div>
+      </section>
+
+      {/* ===== 숫자로 보는 시즌2 ===== */}
+      <section className="relative px-6 py-24 bg-[#3b2a8c]">
+        <h2 className="text-3xl md:text-4xl font-black text-center mb-14">
+          숫자로 보는 클릭온 AI {SEASON.name}
+        </h2>
+        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-5">
+          {[
+            { n: SEASON.programs, s: '개', l: '프로그램' },
+            { n: SEASON.institutions, s: '개', l: '참여 기관' },
+            { n: SEASON.newPrograms, s: '개', l: '신규 프로그램' },
+            { n: 42, s: '일', l: '10/15 ~ 11/25' },
+          ].map((it) => (
+            <motion.div
+              key={it.l}
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-60px' }}
+              transition={{ duration: 0.5 }}
+              className="rounded-3xl bg-white/10 border-2 border-white/30 p-6 text-center"
+            >
+              <div className="text-5xl md:text-6xl font-black text-yellow-300">
+                <CountUp to={it.n} suffix={it.s} />
+              </div>
+              <div className="mt-2 font-bold text-indigo-100">{it.l}</div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* 4개 영역 */}
+        <div className="max-w-5xl mx-auto mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {SEASON.areas.map((a, i) => (
+            <motion.div
+              key={a.name}
+              initial={{ opacity: 0, rotate: -3, y: 30 }}
+              whileInView={{ opacity: 1, rotate: 0, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1, type: 'spring' }}
+              whileHover={reduce ? undefined : { y: -6, rotate: 1 }}
+              className="rounded-3xl bg-white text-slate-900 p-6 border-4 border-slate-900 shadow-[5px_5px_0_0_#0f172a]"
+            >
+              <div className="text-4xl">{a.icon}</div>
+              <div className="mt-3 text-xl font-black">{a.name}</div>
+              <div className="font-bold text-indigo-600">{a.count}개 프로그램</div>
+              {a.note && (
+                <span className="inline-block mt-2 px-2 py-0.5 text-xs font-black bg-pink-500 text-white rounded-full">
+                  {a.note}
+                </span>
+              )}
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* ===== 달라진 점 ===== */}
+      <section className="px-6 py-24 bg-[#0b1026]">
+        <h2 className="text-3xl md:text-4xl font-black text-center mb-14">
+          🔄 1기와 이렇게 달라졌어요
+        </h2>
+        <div className="max-w-3xl mx-auto relative">
+          <div className="absolute left-5 top-0 bottom-0 w-1 bg-gradient-to-b from-yellow-300 to-pink-400 rounded" />
+          {CHANGES.map((c, i) => (
+            <motion.div
+              key={c.title}
+              initial={{ opacity: 0, x: -40 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ delay: 0.05, duration: 0.5 }}
+              className="relative pl-16 pb-10"
+            >
+              <motion.div
+                className="absolute left-0 top-0 w-11 h-11 rounded-full bg-yellow-300 text-slate-900 font-black text-xs flex items-center justify-center border-4 border-[#0b1026]"
+                initial={{ scale: 0 }}
+                whileInView={{ scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ type: 'spring', delay: 0.15 }}
+              >
+                {c.badge}
+              </motion.div>
+              <h3 className="text-xl font-black">
+                {i + 1}. {c.title}
+              </h3>
+              <p className="mt-1 text-indigo-200 font-bold">{c.body}</p>
+            </motion.div>
+          ))}
+        </div>
+        <p className="max-w-3xl mx-auto mt-2 text-xs text-slate-400">
+          출처: 클릭온 AI 공식 누리집, 과기정통부 보도자료. 세부 내용은 공식 안내서를 확인하세요.
+        </p>
+      </section>
+
+      {/* ===== 우리 게시판 업그레이드 ===== */}
+      <section className="px-6 py-24 bg-gradient-to-b from-[#0b1026] to-[#1b1f5e]">
+        <h2 className="text-3xl md:text-4xl font-black text-center mb-10">
+          🛠 우리 게시판도 업그레이드!
+        </h2>
+        <ul className="max-w-2xl mx-auto space-y-3">
+          {UPGRADES.map((u, i) => (
+            <motion.li
+              key={u}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.08 }}
+              className="flex items-center gap-3 rounded-2xl bg-white/10 border border-white/20 px-5 py-4 font-bold"
+            >
+              <span className="text-yellow-300">✔</span> {u}
+            </motion.li>
+          ))}
+        </ul>
+
+        <div className="text-center mt-14">
+          <motion.div
+            animate={reduce ? undefined : { scale: [1, 1.05, 1] }}
+            transition={{ duration: 1.8, repeat: Infinity }}
+            className="inline-block"
+          >
+            <Link
+              href="/board"
+              className="inline-flex items-center gap-2 px-10 py-5 rounded-2xl bg-yellow-300 text-slate-900 font-black text-2xl border-4 border-slate-900 shadow-[6px_6px_0_0_#0f172a]"
+            >
+              🚀 지금 참여하러 가기
+            </Link>
+          </motion.div>
+        </div>
+      </section>
     </main>
   );
 }
