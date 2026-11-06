@@ -40,6 +40,7 @@ function Stars() {
     { x: number; y: number; s: number; d: number; t: number }[]
   >([]);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setStars(
       Array.from({ length: 70 }, () => ({
         x: Math.random() * 100,

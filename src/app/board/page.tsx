@@ -1,361 +1,157 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Sparkles, Trophy, Image as ImageIcon, PlusCircle, Volume2, School, QrCode, ExternalLink } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import UploadModal from '@/components/UploadModal';
-import CertificateGallery from '@/components/CertificateGallery';
-import RankingDashboard from '@/components/RankingDashboard';
-import QRCodeModal from '@/components/QRCodeModal';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Home, Trophy, LayoutGrid, Plus, QrCode, ExternalLink, Settings } from 'lucide-react';
 import { SEASON, daysLeft } from '@/lib/season';
+import ProgressHero from '@/components/s2/ProgressHero';
+import Ranking from '@/components/s2/Ranking';
+import Gallery from '@/components/s2/Gallery';
+import UploadSheet from '@/components/s2/UploadSheet';
+import QRSheet from '@/components/s2/QRSheet';
+import type { Certificate, ClassRanking, StudentRanking } from '@/components/s2/types';
 
-interface Certificate {
-  id: string;
-  grade: number;
-  classNum: number;
-  studentName: string;
-  imageUrl: string;
-  createdAt: string;
-}
+type Tab = 'home' | 'ranking' | 'gallery';
+const TABS: { id: Tab; label: string; Icon: typeof Home }[] = [
+  { id: 'home', label: '홈', Icon: Home },
+  { id: 'ranking', label: '랭킹', Icon: Trophy },
+  { id: 'gallery', label: '갤러리', Icon: LayoutGrid },
+];
 
-interface ClassRanking {
-  grade: number;
-  count: number;
-}
+export default function Board() {
+  const [tab, setTab] = useState<Tab>('home');
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [certs, setCerts] = useState<Certificate[]>([]);
+  const [classRank, setClassRank] = useState<ClassRanking[]>([]);
+  const [studentRank, setStudentRank] = useState<StudentRanking[]>([]);
+  const [loading, setLoading] = useState(true);
 
-interface StudentRanking {
-  grade: number;
-  classNum: number;
-  studentName: string;
-  count: number;
-}
-
-export default function Home() {
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [isQRModalOpen, setIsQRModalOpen] = useState<boolean>(false);
-  const [certificates, setCertificates] = useState<Certificate[]>([]);
-  const [classRankings, setClassRankings] = useState<ClassRanking[]>([]);
-  const [studentRankings, setStudentRankings] = useState<StudentRanking[]>([]);
-  const [activeTab, setActiveTab] = useState<'ranking' | 'gallery'>('ranking');
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-
-  // Fetch all live data (certificates + rankings)
-  const fetchLiveData = useCallback(async (showLoading = false) => {
-    if (showLoading) setIsLoading(true);
+  const load = useCallback(async (first = false) => {
     try {
-      const [certRes, rankRes] = await Promise.all([
-        fetch('/api/certificates'),
-        fetch('/api/rankings'),
-      ]);
-
-      if (!certRes.ok || !rankRes.ok) {
-        throw new Error('데이터를 가져오는 데 실패했습니다.');
+      const [c, r] = await Promise.all([fetch('/api/certificates'), fetch('/api/rankings')]);
+      if (!c.ok || !r.ok) throw new Error('fetch failed');
+      const cj = await c.json();
+      const rj = await r.json();
+      if (cj.success) setCerts(cj.data);
+      if (rj.success) {
+        setClassRank(rj.data.classRankings);
+        setStudentRank(rj.data.studentRankings);
       }
-
-      const certResult = await certRes.json();
-      const rankResult = await rankRes.json();
-
-      if (certResult.success) {
-        setCertificates(certResult.data);
-      }
-      if (rankResult.success) {
-        setClassRankings(rankResult.data.classRankings);
-        setStudentRankings(rankResult.data.studentRankings);
-      }
-    } catch (error) {
-      console.error('Error fetching live data:', error);
+    } catch (e) {
+      console.error(e);
     } finally {
-      if (showLoading) setIsLoading(false);
+      if (first) setLoading(false);
     }
   }, []);
 
-  // Initial loading & polling
   useEffect(() => {
-    fetchLiveData(true);
-
-    // 10초 간격, 탭이 숨겨진 동안은 요청하지 않음 (1기: 3초 상시 폴링)
-    const intervalId = setInterval(() => {
-      if (document.visibilityState === 'visible') fetchLiveData(false);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load(true);
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') load();
     }, 10000);
+    return () => clearInterval(id);
+  }, [load]);
 
-    return () => clearInterval(intervalId);
-  }, [fetchLiveData]);
-
-  // Setup loop confetti if target achieved!
+  const goalDone = certs.length >= SEASON.goal;
   useEffect(() => {
-    if (certificates.length >= SEASON.goal) {
-      const interval = setInterval(() => {
-        confetti({
-          particleCount: 50,
-          angle: 60,
-          spread: 55,
-          origin: { x: 0 },
-          colors: ['#ffc01e', '#ff4785', '#10b981'],
-        });
-        confetti({
-          particleCount: 50,
-          angle: 120,
-          spread: 55,
-          origin: { x: 1 },
-          colors: ['#ffc01e', '#ff4785', '#10b981'],
-        });
-      }, 2500);
-      return () => clearInterval(interval);
-    }
-  }, [certificates.length]);
-
-  const handleUploadSuccess = () => {
-    fetchLiveData(false);
-  };
-
-  // Rocket calculations
-  const totalCerts = certificates.length;
-  const targetGoal = SEASON.goal;
-  const percentCompleted = Math.min(100, Math.floor((totalCerts / targetGoal) * 100));
-  const isGoalAchieved = totalCerts >= targetGoal;
+    if (!goalDone) return;
+    const id = setInterval(() => {
+      confetti({ particleCount: 40, angle: 60, spread: 55, origin: { x: 0 } });
+      confetti({ particleCount: 40, angle: 120, spread: 55, origin: { x: 1 } });
+    }, 2500);
+    return () => clearInterval(id);
+  }, [goalDone]);
 
   return (
-    <main className="min-h-screen pb-16 px-4 md:px-8 bg-[#fefcf6]">
-      {/* Top Banner Area */}
-      <div className="max-w-6xl mx-auto pt-8 pb-10">
-        <header className="flex flex-col lg:flex-row items-center justify-between gap-6 bg-indigo-500 border-4 border-slate-800 p-6 md:p-8 rounded-3xl shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] mb-8 text-white relative overflow-hidden">
-          <div className="absolute top-[-20%] right-[-10%] w-60 h-60 bg-yellow-400 rounded-full opacity-20 blur-xl"></div>
-          
-          <div className="flex items-center gap-4 relative z-10 text-center lg:text-left flex-col sm:flex-row">
-            <div className="p-3 bg-yellow-300 border-3 border-slate-800 rounded-2xl shadow-[3px_3px_0px_0px_rgba(30,41,59,1)] flex items-center justify-center shrink-0 mx-auto lg:mx-0">
-              <School className="w-10 h-10 text-slate-800" />
-            </div>
-            <div>
-              <div className="flex items-center justify-center lg:justify-start gap-1 bg-yellow-300/30 text-yellow-300 font-extrabold text-xs px-2.5 py-1 rounded-full border border-yellow-300/40 w-fit mx-auto lg:mx-0 mb-1">
-                <Sparkles className="w-3.5 h-3.5 fill-yellow-400" />
-                <span>내성초 클릭온 AI 시즌2 · D-{daysLeft()}</span>
-              </div>
-              <h1 className="text-3xl md:text-4xl font-black tracking-tight text-slate-50">
-                AI 마스터 챌린지 2기 갤러리
-              </h1>
-              <p className="text-indigo-100 font-bold text-sm md:text-base mt-1.5">
-                로그인 없이 학생과 학부모 모두 쉽고 편하게 참여 인증을 올려봐요! 🚀
-              </p>
-            </div>
-          </div>
+    <div className="mc">
+      {/* 데스크톱 사이드 레일 */}
+      <aside className="hidden md:flex fixed inset-y-0 left-0 w-60 flex-col p-5 gap-2 border-r" style={{ borderColor: 'var(--mc-line)' }}>
+        <Link href="/" className="font-black text-lg mb-6 leading-tight">
+          🚀 내성초<br /><span style={{ color: 'var(--mc-lime)' }}>AI 챌린지 2기</span>
+        </Link>
+        {TABS.map(({ id, label, Icon }) => (
+          <button key={id} onClick={() => setTab(id)} className="flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-left transition"
+            style={tab === id ? { background: 'var(--mc-surface)', color: 'var(--mc-lime)' } : { color: 'var(--mc-dim)' }}>
+            <Icon className="w-5 h-5" /> {label}
+          </button>
+        ))}
+        <button className="mc-btn mt-4" onClick={() => setUploadOpen(true)}><Plus className="w-5 h-5" /> 인증서 올리기</button>
+        <div className="mt-auto space-y-2 text-sm font-bold" style={{ color: 'var(--mc-dim)' }}>
+          <button onClick={() => setQrOpen(true)} className="flex items-center gap-2"><QrCode className="w-4 h-4" /> 배포용 QR</button>
+          <a href={SEASON.officialUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2"><ExternalLink className="w-4 h-4" /> 공식 클릭온 AI</a>
+          <Link href="/admin" className="flex items-center gap-2"><Settings className="w-4 h-4" /> 관리자</Link>
+        </div>
+      </aside>
 
-          {/* Action Button Set */}
-          <div className="flex flex-wrap justify-center items-center gap-4 relative z-10 shrink-0 w-full lg:w-auto">
-            <button
-              onClick={() => setIsQRModalOpen(true)}
-              className="school-btn-secondary px-5 py-4 text-base md:text-lg flex items-center gap-2"
-            >
-              <QrCode className="w-5 h-5" />
-              <span>QR코드 배포 📱</span>
-            </button>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="school-btn-primary px-6 py-4 text-lg md:text-xl flex items-center gap-2 group animate-pulse hover:animate-none"
-            >
-              <PlusCircle className="w-6 h-6 transition-transform group-hover:rotate-90" />
-              인증서 올리기 📸
-            </button>
+      <div className="md:pl-60">
+        {/* 모바일 상단바 */}
+        <header className="md:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-3 backdrop-blur" style={{ background: 'rgba(6,10,24,.8)', borderBottom: '1px solid var(--mc-line)' }}>
+          <Link href="/" className="font-black">🚀 AI 챌린지 <span style={{ color: 'var(--mc-lime)' }}>2기</span></Link>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-black px-2.5 py-1 rounded-full" style={{ background: 'var(--mc-surface)', color: 'var(--mc-cyan)' }}>D-{daysLeft()}</span>
+            <button onClick={() => setQrOpen(true)} aria-label="QR"><QrCode className="w-5 h-5" /></button>
           </div>
         </header>
 
-        {/* Info Notification Area */}
-        <div className="max-w-4xl mx-auto flex items-center gap-3 p-4 bg-yellow-50 border-3 border-slate-800 rounded-2xl shadow-[3px_3px_0px_0px_rgba(30,41,59,1)] mb-8 text-sm font-bold text-slate-800">
-          <Volume2 className="w-5 h-5 shrink-0 text-yellow-600 animate-bounce" />
-          <p>
-            가정에서도 올릴 수 있어요! 학부모 참여 항목으로 올리면 분홍색 예쁜 테두리로 다르게 갤러리에 나타납니다! ✨
-          </p>
-        </div>
-
-        {/* CLICK-ON AI SHORTCUT & QR CODE BANNER */}
-        <div className="max-w-4xl mx-auto school-card bg-indigo-50 border-4 border-slate-800 p-5 md:p-6 mb-8 text-slate-800 flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex-1 text-center sm:text-left">
-            <span className="inline-block px-2.5 py-0.5 mb-2 text-xs font-black text-white bg-pink-500 border border-slate-800 rounded-full">
-              챌린지 바로가기 🔗
-            </span>
-            <h3 className="text-xl font-black text-slate-800 mb-1">
-              💻 2026 클릭온 AI 프로그램 참여하기
-            </h3>
-            <p className="text-slate-600 font-bold text-sm leading-relaxed">
-              오른쪽 QR코드를 촬영하거나 바로가기 버튼을 클릭하여 '클릭온 AI' 챌린지 페이지로 이동할 수 있습니다. 
-              챌린지 프로그램을 무사히 완료하고 발급된 수료증이나 인증 사진을 캡처해서 아래 [인증서 올리기]로 자랑해 보세요!
-            </p>
-            <Link href="/" className="school-btn-secondary px-4 py-2 mt-4 mr-2 text-xs inline-flex items-center gap-1.5">🎬 2기 소개 다시보기</Link>
-            <a
-              href={SEASON.officialUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="school-btn-primary px-4 py-2 mt-4 text-xs inline-flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(30,41,59,1)]"
-            >
-              클릭온 AI 사이트로 가기
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-          </div>
-          
-          {/* Static QR for the external site */}
-          <div className="shrink-0 bg-white border-3 border-slate-800 p-3 rounded-2xl shadow-[3px_3px_0px_0px_rgba(30,41,59,1)]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https%3A%2F%2Faichallenge4all.or.kr%2Fcompetitions%2Fclick-on-ai"
-              alt="클릭온 AI 바로가기 QR"
-              className="w-28 h-28 border-2 border-slate-800 rounded-xl"
-            />
-          </div>
-        </div>
-
-        {/* 300 ROCKET CHALLENGE WIDGET */}
-        <div className="max-w-4xl mx-auto school-card bg-white p-6 mb-10 text-left relative overflow-hidden">
-          <div className="absolute top-2 right-2 p-1 px-3 bg-yellow-100 border-2 border-slate-800 rounded-full font-black text-xs text-yellow-700 animate-pulse">
-            목표: {targetGoal}개 🏆
-          </div>
-
-          <h2 className="text-xl font-black text-slate-800 mb-2 flex items-center gap-2">
-            🚀 내성초 AI 마스터 300 로켓 발사대
-          </h2>
-          <p className="text-slate-500 font-bold text-xs md:text-sm mb-6">
-            학교 전체에 올라온 인증서 수만큼 로켓이 하늘 높이 솟구쳐요! 300개가 되면 로켓이 발사됩니다!
-          </p>
-
-          <div className="flex flex-col md:flex-row items-center gap-6">
-            
-            {/* Visual Launchpad (Vertical Tower) */}
-            <div className="w-full md:w-1/3 h-56 bg-slate-50 border-3 border-slate-800 rounded-2xl relative p-2 flex justify-center overflow-hidden">
-              <div className="absolute inset-y-0 left-1/4 border-l-2 border-dashed border-slate-300"></div>
-              <div className="absolute inset-y-0 right-1/4 border-r-2 border-dashed border-slate-300"></div>
-              
-              <div className="absolute right-4 top-2 text-[10px] font-black text-slate-400 border-b border-slate-200 w-12 text-right">300 (완성)</div>
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 border-b border-slate-200 w-12 text-right">150 (반)</div>
-              <div className="absolute right-4 bottom-2 text-[10px] font-black text-slate-400 border-b border-slate-200 w-12 text-right">0 (시작)</div>
-
-              <div className="absolute bottom-0 w-12 bg-gradient-to-t from-indigo-500 to-indigo-300 rounded-b-xl border-t-2 border-slate-800" style={{ height: `${percentCompleted}%` }}></div>
-
-              <motion.div
-                className="absolute w-12 h-12 flex items-center justify-center text-3xl cursor-pointer"
-                style={{ bottom: `calc(${percentCompleted}% - 20px)` }}
-                animate={
-                  isGoalAchieved
-                    ? { y: [-200, -300], scale: [1, 1.5, 0], opacity: [1, 1, 0] }
-                    : {
-                        y: [0, -2, 2, -1, 1, 0],
-                        rotate: [0, -1, 1, -1, 1, 0],
-                      }
-                }
-                transition={
-                  isGoalAchieved
-                    ? { duration: 2.5, ease: 'easeInOut', repeat: Infinity }
-                    : { duration: 0.15, repeat: Infinity, repeatType: 'reverse' }
-                }
-              >
-                🚀
-              </motion.div>
-
-              {isGoalAchieved && (
-                <div className="absolute inset-0 bg-yellow-300/90 flex flex-col items-center justify-center p-4 border-2 border-slate-800 rounded-xl z-10 animate-bounce">
-                  <span className="text-2xl">🌌</span>
-                  <span className="font-black text-slate-800 text-sm text-center">우주선 발사 성공! ⭐️</span>
-                </div>
+        <main className="max-w-5xl mx-auto px-4 md:px-8 py-6 pb-28 md:pb-10">
+          <AnimatePresence mode="wait">
+            <motion.div key={tab} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="space-y-6">
+              {loading ? (
+                <p className="py-24 text-center font-bold" style={{ color: 'var(--mc-dim)' }}>관제센터 연결 중…</p>
+              ) : (
+                <>
+                  {tab === 'home' && (
+                    <>
+                      <ProgressHero certificates={certs} />
+                      <section>
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="font-black text-xl">방금 올라온 인증</h3>
+                          <button className="text-sm font-bold" style={{ color: 'var(--mc-cyan)' }} onClick={() => setTab('gallery')}>전체 보기 →</button>
+                        </div>
+                        <Gallery certificates={certs} limit={8} />
+                      </section>
+                      <a href={SEASON.officialUrl} target="_blank" rel="noopener noreferrer" className="mc-glass p-5 flex items-center justify-between gap-4">
+                        <div>
+                          <p className="font-black">아직 프로그램을 안 했나요?</p>
+                          <p className="text-sm" style={{ color: 'var(--mc-dim)' }}>클릭온 AI 시즌2 · {SEASON.programs}개 프로그램 중에서 골라 보세요</p>
+                        </div>
+                        <ExternalLink className="shrink-0" />
+                      </a>
+                    </>
+                  )}
+                  {tab === 'ranking' && <Ranking classRankings={classRank} studentRankings={studentRank} />}
+                  {tab === 'gallery' && <Gallery certificates={certs} />}
+                </>
               )}
-            </div>
-
-            {/* Progress Text Description */}
-            <div className="flex-1 w-full flex flex-col justify-center">
-              <div className="flex justify-between items-baseline mb-2">
-                <span className="text-2xl font-black text-indigo-600">
-                  {percentCompleted}% 충전 중!
-                </span>
-                <span className="font-extrabold text-slate-700 text-sm">
-                  ({totalCerts} / {targetGoal}개 완료)
-                </span>
-              </div>
-
-              <div className="w-full h-8 bg-slate-100 border-3 border-slate-800 rounded-2xl overflow-hidden relative shadow-[2px_2px_0px_0px_rgba(30,41,59,1)]">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${percentCompleted}%` }}
-                  transition={{ duration: 1, ease: 'easeOut' }}
-                  className="h-full bg-yellow-400 border-r-3 border-slate-800"
-                />
-              </div>
-
-              <div className="mt-4 p-3 bg-slate-50 border-2 border-slate-800 rounded-xl font-extrabold text-slate-700 text-sm">
-                {isGoalAchieved ? (
-                  <span className="text-yellow-600">
-                    🎉 축하합니다! 내성초 친구들의 참여로 300 로켓이 우주로 힘차게 날아올랐습니다! 멋진 AI 챌린지 완성! 🌌
-                  </span>
-                ) : (
-                  <span>
-                    💡 {targetGoal - totalCerts}개의 인증서가 더 채워지면 로켓이 우주로 발사됩니다! 친구들과 함께 올려볼까요?
-                  </span>
-                )}
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        {/* Content Navigation Area */}
-        <div className="flex justify-center border-b-4 border-slate-800 mb-8 max-w-lg mx-auto">
-          <button
-            onClick={() => setActiveTab('ranking')}
-            className={`px-8 py-3 text-lg font-black tracking-wide border-t-4 border-x-4 border-transparent rounded-t-2xl translate-y-[4px] transition-all flex items-center space-x-2 ${
-              activeTab === 'ranking'
-                ? 'bg-[#fefcf6] border-slate-800 text-slate-800 z-10'
-                : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            <Trophy className={`w-5 h-5 ${activeTab === 'ranking' ? 'text-yellow-500 fill-yellow-400' : ''}`} />
-            <span>실시간 랭킹보드</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('gallery')}
-            className={`px-8 py-3 text-lg font-black tracking-wide border-t-4 border-x-4 border-transparent rounded-t-2xl translate-y-[4px] transition-all flex items-center space-x-2 ${
-              activeTab === 'gallery'
-                ? 'bg-[#fefcf6] border-slate-800 text-slate-800 z-10'
-                : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            <ImageIcon className={`w-5 h-5 ${activeTab === 'gallery' ? 'text-indigo-500 fill-indigo-100' : ''}`} />
-            <span>인증 갤러리</span>
-          </button>
-        </div>
-
-        {/* Dynamic Display Area */}
-        <div className="w-full">
-          {activeTab === 'ranking' ? (
-            <RankingDashboard
-              classRankings={classRankings}
-              studentRankings={studentRankings}
-              isLoading={isLoading}
-            />
-          ) : (
-            <CertificateGallery certificates={certificates} isLoading={isLoading} />
-          )}
-        </div>
+            </motion.div>
+          </AnimatePresence>
+        </main>
       </div>
 
-      {/* Upload Form Modal Popup */}
-      <UploadModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onUploadSuccess={handleUploadSuccess}
-      />
+      {/* 모바일 하단 내비게이션 + 중앙 FAB */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-4 items-end px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur" style={{ background: 'rgba(6,10,24,.92)', borderTop: '1px solid var(--mc-line)' }}>
+        {[TABS[0], TABS[1]].map(({ id, label, Icon }) => (
+          <button key={id} onClick={() => setTab(id)} className="flex flex-col items-center gap-0.5 py-2.5 text-xs font-bold" style={{ color: tab === id ? 'var(--mc-lime)' : 'var(--mc-dim)' }}>
+            <Icon className="w-5 h-5" />{label}
+          </button>
+        ))}
+        <button key="gallery" onClick={() => setTab('gallery')} className="flex flex-col items-center gap-0.5 py-2.5 text-xs font-bold" style={{ color: tab === 'gallery' ? 'var(--mc-lime)' : 'var(--mc-dim)' }}>
+          <LayoutGrid className="w-5 h-5" />갤러리
+        </button>
+        <button onClick={() => setUploadOpen(true)} aria-label="인증서 올리기" className="flex flex-col items-center gap-0.5 py-2.5 text-xs font-black" style={{ color: 'var(--mc-lime)' }}>
+          <span className="-mt-7 w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'var(--mc-lime)', color: '#0b1200', boxShadow: '0 0 24px rgba(198,255,77,.45)' }}>
+            <Plus className="w-7 h-7" />
+          </span>
+          올리기
+        </button>
+      </nav>
 
-      {/* QR Code Modal Popup */}
-      <QRCodeModal
-        isOpen={isQRModalOpen}
-        onClose={() => setIsQRModalOpen(false)}
-      />
-      {/* Footer / Admin Shortcut Link */}
-      <footer className="max-w-6xl mx-auto mt-12 pt-6 border-t-2 border-dashed border-slate-200 text-center flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-bold text-slate-400">
-        <span>© 2026 내성초등학교. All rights reserved.</span>
-        <Link
-          href="/admin"
-          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-300 hover:border-slate-800 rounded-lg transition-all flex items-center gap-1 active:translate-y-0.5"
-        >
-          <span>⚙️ 관리자 모드</span>
-        </Link>
-      </footer>
-    </main>
+      <UploadSheet open={uploadOpen} onClose={() => setUploadOpen(false)} onDone={() => load()} />
+      <QRSheet open={qrOpen} onClose={() => setQrOpen(false)} />
+    </div>
   );
 }
