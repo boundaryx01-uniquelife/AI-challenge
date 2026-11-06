@@ -10,14 +10,20 @@ import {
   useTransform,
   useMotionTemplate,
   useMotionValue,
+  useMotionValueEvent,
   animate,
   type MotionValue,
 } from 'framer-motion';
-import { ArrowRight, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { SEASON, daysLeft } from '@/lib/season';
+import {
+  Sprite, P, rocketRows, ROCKET_PAL, ROCKET_LEVELS, FLAME_A, FLAME_B, FLAME_PAL,
+  KID_A, KID_B, kidPal, CERT, CERT_PAL, BATTERY, batteryPal, CLOUD, CLOUD_PAL,
+  SUN, SUN_PAL, MOON, MOON_PAL, SCHOOL, SCHOOL_PAL,
+} from '@/components/pixel/Sprite';
 
 /* ------------------------------------------------------------------ */
-/* 공통 유틸                                                           */
+/* 유틸                                                                */
 /* ------------------------------------------------------------------ */
 
 function CountUp({ to, suffix = '' }: { to: number; suffix?: string }) {
@@ -28,346 +34,359 @@ function CountUp({ to, suffix = '' }: { to: number; suffix?: string }) {
   const text = useTransform(mv, (v) => `${Math.round(v)}${suffix}`);
   useEffect(() => {
     if (!inView) return;
-    if (reduce) {
-      mv.set(to);
-      return;
-    }
+    if (reduce) { mv.set(to); return; }
     const c = animate(mv, to, { duration: 1.6, ease: 'easeOut' });
     return () => c.stop();
   }, [inView, reduce, to, mv]);
   return <motion.span ref={ref}>{text}</motion.span>;
 }
 
-/** 스크롤 구간 [a,b]에서 나타났다가 [c,d]에서 사라지는 불투명도 */
-function useWindow(p: MotionValue<number>, a: number, b: number, c: number, d: number) {
-  return useTransform(p, [a, b, c, d], [0, 1, 1, 0]);
-}
+const GROUND = '20vh'; // 지면 높이
+
+// 스크롤 진행도(--p, 0~1)를 CSS 변수로 두고 불투명도를 CSS 수식으로 계산한다.
+// 한 번에 크게 스크롤해도 항상 정확한 값이 나온다.
+const V = 'var(--p, 0)';
+/** [a,b]에서 서서히 나타나 [c,d]에서 사라짐 */
+const winCss = (a: number, b: number, c: number, d: number) =>
+  `clamp(0, min(calc((${V} - ${a}) / ${b - a}), calc((${d} - ${V}) / ${d - c})), 1)`;
+const upCss = (a: number, b: number) => `clamp(0, calc((${V} - ${a}) / ${b - a}), 1)`;
+const downCss = (a: number, b: number) => `clamp(0, calc((${b} - ${V}) / ${b - a}), 1)`;
 
 /* ------------------------------------------------------------------ */
 /* 장면 요소                                                           */
 /* ------------------------------------------------------------------ */
 
-function Caption({
-  p, range, title, sub,
-}: {
-  p: MotionValue<number>;
-  range: [number, number, number, number];
-  title: string;
-  sub?: string;
-}) {
-  const opacity = useWindow(p, ...range);
-  const y = useTransform(p, [range[0], range[1]], [24, 0]);
-  return (
-    <motion.div style={{ opacity, y }} className="absolute inset-x-0 top-[13vh] px-6 text-center pointer-events-none">
-      <h2 className="text-3xl md:text-5xl font-black leading-tight drop-shadow-[0_2px_12px_rgba(0,0,0,.5)]">{title}</h2>
-      {sub && <p className="mt-3 text-base md:text-xl font-bold text-indigo-100 drop-shadow-[0_2px_8px_rgba(0,0,0,.5)]">{sub}</p>}
-    </motion.div>
-  );
+const SKY_KEYS = [0, 0.45, 0.72, 0.9, 1];
+const SKY: string[][] = [
+  // [밤, 밤(조금 밝게), 보라 저녁, 노을, 맑은 낮] — 위에서 아래로 10띠
+  ['#0b0f26', '#0e1330', '#121a3d', '#18224d', '#1f2c5e', '#283772', '#32448a', '#3d52a0', '#4a62b5', '#5a72c5'],
+  ['#0d1230', '#11183a', '#162147', '#1c2a58', '#243569', '#2e427e', '#3a519a', '#4561b0', '#5271c4', '#6283d4'],
+  ['#1a1440', '#241a55', '#2f2068', '#3b277a', '#4a2f8a', '#5c3a98', '#7344a4', '#8c50ac', '#a85fb0', '#c470b0'],
+  ['#5a4fcf', '#7a5fd0', '#9a6fd0', '#ba7fcf', '#d98fc4', '#f09fb4', '#ffaf9f', '#ffbf8f', '#ffcf80', '#ffdf75'],
+  ['#4aa8ff', '#5db4ff', '#70c0ff', '#84ccff', '#98d6ff', '#b0e0ff', '#c8eaff', '#ffe9b8', '#ffd89a', '#ffc27d'],
+];
+function SkyBand({ p, i }: { p: MotionValue<number>; i: number }) {
+  const backgroundColor = useTransform(p, SKY_KEYS, SKY.map((s) => s[i]));
+  return <motion.div style={{ backgroundColor }} className="flex-1" />;
 }
 
-/** 로켓으로 날아와 빨려 들어가는 인증서/연료 카드 */
-function Flyer({
-  p, from, to, label, i, className = '',
-}: {
-  p: MotionValue<number>;
-  from: [number, number]; // [vw, vh] 시작 오프셋
-  to: [number, number];
-  label: React.ReactNode;
-  i: number;
-  className?: string;
-}) {
-  const s = to[0]; // 구간 시작
-  const e = to[1]; // 구간 끝
-  const x = useTransform(p, [s, e], [`${from[0]}vw`, '0vw']);
-  const y = useTransform(p, [s, e], [`${from[1]}vh`, '6vh']);
-  const scale = useTransform(p, [s, e - 0.02, e], [1, 0.7, 0.1]);
-  const opacity = useTransform(p, [s - 0.001, s, e - 0.01, e], [0, 1, 1, 0]);
-  const rotate = useTransform(p, [s, e], [i % 2 ? 14 : -14, 0]);
-  return (
-    <motion.div
-      style={{ x, y, scale, opacity, rotate }}
-      className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none ${className}`}
-    >
-      {label}
-    </motion.div>
-  );
-}
-
-function Cert({ n }: { n: number }) {
-  return (
-    <div className="w-24 md:w-32 aspect-[4/3] rounded-lg bg-white text-slate-900 shadow-xl border-4 border-yellow-300 p-2 flex flex-col justify-between">
-      <div className="h-1.5 w-2/3 bg-indigo-400 rounded" />
-      <div className="text-[10px] md:text-xs font-black text-center">🏅 인증서 #{n}</div>
-      <div className="h-1.5 w-1/2 bg-slate-300 rounded self-end" />
-    </div>
-  );
-}
-
-function Fuel({ icon, text, hue }: { icon: string; text: string; hue: string }) {
-  return (
-    <div className="px-4 py-2 rounded-full font-black text-sm md:text-base shadow-xl border-2 border-white/60 flex items-center gap-2" style={{ background: hue, color: '#0b1020' }}>
-      <span className="text-xl">{icon}</span>{text}
-    </div>
-  );
-}
-
-function Rocket({ fuel }: { fuel: MotionValue<number> }) {
-  const fillY = useTransform(fuel, (v) => 178 - 125 * v); // 연료 표시 높이 (몸통 하단 170 아래에서 시작)
-  return (
-    <svg viewBox="0 0 120 260" className="w-28 md:w-36 drop-shadow-[0_0_24px_rgba(255,255,255,.35)]" aria-hidden>
-      <defs>
-        <clipPath id="body"><path d="M60 8 C95 40 100 90 96 170 L24 170 C20 90 25 40 60 8Z" /></clipPath>
-        <linearGradient id="bodyg" x1="0" x2="1"><stop offset="0" stopColor="#e8edff" /><stop offset="1" stopColor="#b8c4ff" /></linearGradient>
-      </defs>
-      {/* 날개 */}
-      <path d="M26 120 L0 190 L30 175Z" fill="#ff5d8f" />
-      <path d="M94 120 L120 190 L90 175Z" fill="#ff5d8f" />
-      <path d="M60 8 C95 40 100 90 96 170 L24 170 C20 90 25 40 60 8Z" fill="url(#bodyg)" />
-      {/* 연료(채워지는 부분) */}
-      <g clipPath="url(#body)">
-        <motion.rect x="0" width="120" height="200" style={{ y: fillY }} fill="#c6ff4d" opacity="0.9" />
-      </g>
-      <path d="M60 8 C95 40 100 90 96 170 L24 170 C20 90 25 40 60 8Z" fill="none" stroke="#1e1b4b" strokeWidth="3" />
-      <circle cx="60" cy="70" r="16" fill="#5ef2ff" stroke="#1e1b4b" strokeWidth="4" />
-      <circle cx="55" cy="65" r="4" fill="#fff" opacity=".8" />
-      <rect x="40" y="170" width="40" height="14" rx="4" fill="#1e1b4b" />
-    </svg>
-  );
-}
-
-function Flame({ strength }: { strength: MotionValue<number> }) {
-  const scaleY = useTransform(strength, [0, 1], [0, 1]);
-  return (
-    <motion.div style={{ scaleY, opacity: strength, transformOrigin: 'top' }} className="absolute left-1/2 -translate-x-1/2 top-full -mt-8">
-      <motion.div
-        animate={{ scaleY: [1, 1.35, 0.9, 1.25, 1], scaleX: [1, 0.85, 1.1, 0.9, 1] }}
-        transition={{ duration: 0.3, repeat: Infinity }}
-        style={{ transformOrigin: 'top' }}
-      >
-        <svg viewBox="0 0 60 140" className="w-12 md:w-16" aria-hidden>
-          <path d="M30 0 C58 30 50 90 30 140 C10 90 2 30 30 0Z" fill="#ff8a3c" />
-          <path d="M30 0 C48 30 42 70 30 100 C18 70 12 30 30 0Z" fill="#ffd54a" />
-          <path d="M30 0 C38 24 36 50 30 66 C24 50 22 24 30 0Z" fill="#fff6d0" />
-        </svg>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-function Cloud({ p, left, size, start }: { p: MotionValue<number>; left: string; size: number; start: number }) {
-  // 로켓이 올라갈수록 구름이 위에서 아래로 스쳐 지나감
-  const y = useTransform(p, [start, start + 0.1], ['-30vh', '120vh']);
-  return (
-    <motion.div style={{ y, left, top: 0, width: size }} className="absolute pointer-events-none" aria-hidden>
-      <div className="h-8 rounded-full bg-white/90 relative">
-        <div className="absolute -top-4 left-4 w-1/3 h-10 rounded-full bg-white/90" />
-        <div className="absolute -top-6 left-1/2 w-1/3 h-12 rounded-full bg-white/90" />
-      </div>
-    </motion.div>
-  );
-}
-
-function Stars({ p }: { p: MotionValue<number> }) {
-  const [stars, setStars] = useState<{ x: number; y: number; s: number; t: number }[]>([]);
+function Stars() {
+  const [stars, setStars] = useState<{ x: number; y: number; big: boolean; b: boolean }[]>([]);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setStars(Array.from({ length: 80 }, () => ({ x: Math.random() * 100, y: Math.random() * 80, s: 1 + Math.random() * 2.5, t: 2 + Math.random() * 3 })));
+    setStars(Array.from({ length: 70 }, () => ({ x: Math.random() * 100, y: Math.random() * 70, big: Math.random() > 0.8, b: Math.random() > 0.5 })));
   }, []);
-  const opacity = useTransform(p, [0, 0.7, 0.95], [1, 1, 0]);
   return (
-    <motion.div style={{ opacity }} className="absolute inset-0 pointer-events-none" aria-hidden>
-      {stars.map((st, i) => (
-        <motion.span
+    <div style={{ opacity: downCss(0.7, 0.93) }} className="absolute inset-0 pointer-events-none" aria-hidden>
+      {stars.map((s, i) => (
+        <span
           key={i}
-          className="absolute rounded-full bg-white"
-          style={{ left: `${st.x}%`, top: `${st.y}%`, width: st.s, height: st.s }}
-          animate={{ opacity: [0.2, 1, 0.2] }}
-          transition={{ duration: st.t, repeat: Infinity }}
+          className={`absolute ${s.b ? 'px-slow-a' : 'px-slow-b'}`}
+          style={{ left: `${s.x}%`, top: `${s.y}%`, width: `calc(var(--px) * ${s.big ? 2 : 1})`, height: `calc(var(--px) * ${s.big ? 2 : 1})`, background: s.big && s.b ? P.yellow : '#fff' }}
         />
       ))}
+    </div>
+  );
+}
+
+function Dialog({ range, title, sub }: { range: [number, number, number, number]; title: string; sub?: string }) {
+  return (
+    <div style={{ opacity: winCss(...range) }} className="absolute inset-x-0 top-[11vh] flex justify-center px-4 pointer-events-none">
+      <div className="px-box px-4 md:px-6 py-3 max-w-xl text-center">
+        <h2 className="font-black text-lg md:text-2xl leading-snug text-white">{title}</h2>
+        {sub && <p className="mt-1.5 text-xs md:text-base" style={{ color: P.lime }}>{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+/** 지면 기준 좌표(--px 단위)로 아치를 그리며 로켓으로 날아드는 아이템 */
+function Flyer({
+  p, s, e, from, children,
+}: { p: MotionValue<number>; s: number; e: number; from: [number, number]; children: React.ReactNode }) {
+  const x = useTransform(p, [s, e], [from[0], 0]);
+  const y = useTransform(p, [s, (s + e) / 2, e], [from[1], Math.max(from[1], 20) + 26, 14]);
+  const sc = useTransform(p, [s, e - 0.012, e], [1, 1, 0.3]);
+  const opacity = useTransform(p, [s - 0.001, s, e - 0.006, e], [0, 1, 1, 0]);
+  const transform = useMotionTemplate`translate(calc(var(--px) * ${x}), calc(var(--px) * ${y} * -1)) scale(${sc})`;
+  return (
+    <motion.div style={{ transform, opacity, left: '50%', bottom: GROUND }} className="absolute pointer-events-none z-10">
+      <div style={{ transform: 'translate(-50%, 50%)' }}>{children}</div>
     </motion.div>
   );
 }
 
-/** 장면 1: 클릭하는 커서와 물결 */
-function ClickScene({ p }: { p: MotionValue<number> }) {
-  const opacity = useWindow(p, 0, 0.03, 0.13, 0.18);
-  const spots = [
-    { x: '-22vw', y: '4vh', d: 0 },
-    { x: '20vw', y: '-6vh', d: 0.5 },
-    { x: '-8vw', y: '16vh', d: 1 },
-    { x: '28vw', y: '14vh', d: 1.5 },
-  ];
+const KIDS = [
+  { x: -36, pal: kidPal('#3b2a1a', '#ff004d', '#29366f') },
+  { x: -24, pal: kidPal('#ffcd75', '#29adff', '#5f574f') },
+  { x: 24, pal: kidPal('#1a1c2c', '#ffec27', '#257179') },
+  { x: 36, pal: kidPal('#b13e53', '#a7f070', '#3b5dc9') },
+];
+
+function Kid({ x, pal, i, wave }: { x: number; pal: ReturnType<typeof kidPal>; i: number; wave: boolean }) {
   return (
-    <motion.div style={{ opacity }} className="absolute inset-0 pointer-events-none" aria-hidden>
-      {spots.map((s, i) => (
-        <div key={i} className="absolute left-1/2 top-1/2" style={{ transform: `translate(${s.x}, ${s.y})` }}>
-          <motion.span
-            className="absolute -left-6 -top-6 w-12 h-12 rounded-full border-4 border-cyan-300"
-            animate={{ scale: [0.3, 2], opacity: [0.9, 0] }}
-            transition={{ duration: 1.6, repeat: Infinity, delay: s.d }}
-          />
-          <motion.span className="absolute text-3xl" animate={{ scale: [1, 0.8, 1] }} transition={{ duration: 1.6, repeat: Infinity, delay: s.d }}>
-            👆
-          </motion.span>
-        </div>
+    <div className="absolute" style={{ left: `calc(50% + var(--px) * ${x - 4})`, bottom: GROUND }}>
+      <div className="relative">
+        <Sprite rows={KID_A} palette={pal} className={wave ? (i % 2 ? 'px-b' : 'px-a') : undefined} />
+        {wave && <Sprite rows={KID_B} palette={pal} className={`absolute inset-0 ${i % 2 ? 'px-a' : 'px-b'}`} />}
+      </div>
+    </div>
+  );
+}
+
+function RocketSprite({ fuel }: { fuel: MotionValue<number> }) {
+  const [n, setN] = useState(0);
+  useMotionValueEvent(fuel, 'change', (v) => {
+    const next = Math.round(v * ROCKET_LEVELS);
+    setN((cur) => (cur === next ? cur : next));
+  });
+  return <Sprite rows={rocketRows(n)} palette={ROCKET_PAL} />;
+}
+
+function Flame() {
+  return (
+    <div style={{ opacity: upCss(0.64, 0.66) }} className="absolute left-1/2 -translate-x-1/2" aria-hidden>
+      <div style={{ marginTop: 'calc(var(--px) * -1)' }} className="relative">
+        <Sprite rows={FLAME_A} palette={FLAME_PAL} className="px-a" />
+        <Sprite rows={FLAME_B} palette={FLAME_PAL} className="px-b absolute left-0 top-0" />
+      </div>
+    </div>
+  );
+}
+
+function Puffs() {
+  const dxs = [-14, -8, -3, 3, 8, 14];
+  return (
+    <div style={{ opacity: winCss(0.64, 0.66, 0.78, 0.82), bottom: GROUND }} className="absolute left-1/2 z-[5] pointer-events-none" aria-hidden>
+      {dxs.map((dx, i) => (
+        <span
+          key={i}
+          className="absolute px-puff"
+          style={{
+            ['--dx' as string]: `calc(var(--px) * ${dx})`,
+            left: `calc(var(--px) * ${dx / 2})`,
+            width: 'calc(var(--px) * 3)', height: 'calc(var(--px) * 3)',
+            background: i % 2 ? '#ffffff' : P.lgrey, animationDelay: `${i * 0.13}s`,
+          }}
+        />
       ))}
+    </div>
+  );
+}
+
+function Cloud({ p, left, scale, start }: { p: MotionValue<number>; left: string; scale: number; start: number }) {
+  const y = useTransform(p, [start, start + 0.1], ['-25vh', '115vh']);
+  return (
+    <motion.div style={{ y, left }} className="absolute top-0 pointer-events-none" aria-hidden>
+      <Sprite rows={CLOUD} palette={CLOUD_PAL} scale={scale} />
     </motion.div>
   );
+}
+
+function HudBody({ p }: { p: MotionValue<number> }) {
+  const [fuelN, setFuelN] = useState(0);
+  const [cert, setCert] = useState(0);
+  const fuel = useTransform(p, [0.42, 0.62], [0, 10]);
+  const certs = useTransform(p, [0.2, 0.4], [0, SEASON.goal]);
+  useMotionValueEvent(fuel, 'change', (v) => setFuelN((c) => (c === Math.round(v) ? c : Math.round(v))));
+  useMotionValueEvent(certs, 'change', (v) => setCert((c) => (c === Math.round(v) ? c : Math.round(v))));
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <span className="w-12" style={{ color: P.yellow }}>CERT</span>
+        <span className="tabular-nums">{String(cert).padStart(3, '0')}/{SEASON.goal}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="w-12" style={{ color: P.lime }}>FUEL</span>
+        <span className="flex gap-[3px]">
+          {Array.from({ length: 10 }, (_, i) => (
+            <span key={i} style={{ width: 8, height: 12, background: i < fuelN ? P.lime : '#3a3f5e' }} />
+          ))}
+        </span>
+      </div>
+    </>
+  );
+}
+
+// 상태 갱신으로 다시 그려질 때 스크롤 연동 스타일이 낡은 값으로 덮이지 않도록,
+// 상태는 모두 자식 컴포넌트(HudBody, Kids, RocketSprite)에 둔다.
+function Hud({ p }: { p: MotionValue<number> }) {
+  return (
+    <div style={{ opacity: winCss(0.17, 0.2, 0.9, 0.94) }} className="absolute left-3 top-3 z-20 px-box px-3 py-2 text-[11px] md:text-sm text-white space-y-1.5 pointer-events-none">
+      <HudBody p={p} />
+    </div>
+  );
+}
+
+function Kids({ p }: { p: MotionValue<number> }) {
+  const [waving, setWaving] = useState(false);
+  useMotionValueEvent(p, 'change', (v) => setWaving((w) => (w === v > 0.72 ? w : v > 0.72)));
+  return <>{KIDS.map((k, i) => <Kid key={i} x={k.x} pal={k.pal} i={i} wave={waving} />)}</>;
 }
 
 /* ------------------------------------------------------------------ */
-/* 스토리 (스크롤 연동 모션그래픽)                                      */
+/* 스토리                                                              */
 /* ------------------------------------------------------------------ */
 
 function Story() {
   const ref = useRef<HTMLDivElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
   const { scrollYProgress: p } = useScroll({ target: ref, offset: ['start start', 'end end'] });
+  useMotionValueEvent(p, 'change', (v) => stage.current?.style.setProperty('--p', String(v)));
+  useEffect(() => { stage.current?.style.setProperty('--p', String(p.get())); }, [p]);
 
-  // 하늘: 깊은 밤 → 밝은 새벽 (더 밝은 미래)
-  const top = useTransform(p, [0, 0.45, 0.72, 0.92, 1], ['#02030d', '#0a0f33', '#1b1f5e', '#5a4fcf', '#7fd1ff']);
-  const bottom = useTransform(p, [0, 0.45, 0.72, 0.92, 1], ['#0a0f33', '#1b2a7a', '#3b2a8c', '#ff9a6b', '#ffe7b0']);
-  const sky = useMotionTemplate`linear-gradient(to bottom, ${top}, ${bottom})`;
-
-  // 로켓
-  const fuel = useTransform(p, [0.42, 0.62], [0, 1], { clamp: true });
-  const flame = useTransform(p, [0.64, 0.74], [0, 1], { clamp: true });
-  const rocketY = useTransform(p, [0.72, 0.93], ['0vh', '-120vh']);
-  const shake = useTransform(p, (v) => (v > 0.64 && v < 0.8 ? Math.sin(v * 900) * (v < 0.72 ? 2 : 4) : 0));
-  const glow = useTransform(p, [0.42, 0.62], [0, 0.7]);
-
-  // 지상
+  const fuel = useTransform(p, [0.42, 0.62], [0, 1]);
+  const rocketY = useTransform(p, [0.72, 0.93], ['0vh', '-125vh']);
+  const shake = useTransform(p, (v) => (v > 0.64 && v < 0.8 ? (Math.round(v * 120) % 2 ? 1 : -1) * (v < 0.72 ? 1 : 2) * 3 : 0));
   const groundY = useTransform(p, [0.72, 0.9], ['0vh', '60vh']);
 
-  // 카운트다운
-  const c3 = useWindow(p, 0.62, 0.635, 0.655, 0.665);
-  const c2 = useWindow(p, 0.665, 0.68, 0.7, 0.71);
-  const c1 = useWindow(p, 0.71, 0.725, 0.74, 0.75);
-
-  // 목표 숫자
-  const goalN = useTransform(p, [0.2, 0.4], [0, SEASON.goal]);
-  const goalText = useTransform(goalN, (v) => `${Math.round(v)}`);
-  const goalOpacity = useWindow(p, 0.2, 0.24, 0.4, 0.46);
-
-  const hintOpacity = useTransform(p, [0, 0.04, 1], [1, 0, 0]);
-  const finalOpacity = useTransform(p, [0.9, 0.97], [0, 1]);
-  const finalPointer = useTransform(p, (v) => (v > 0.93 ? 'auto' : 'none'));
-
+  // 최종 장면(피날레) 클릭 활성화는 자식 컴포넌트의 상태로 처리
   return (
     <div ref={ref} className="relative" style={{ height: '640vh' }}>
-      <motion.div style={{ backgroundImage: sky }} className="sticky top-0 h-screen overflow-hidden text-white">
-        <Stars p={p} />
+      <div ref={stage} className="sticky top-0 h-screen overflow-hidden font-px text-white" style={{ ['--px' as string]: 'clamp(3px, 1.1vw, 6px)' }}>
+        {/* 하늘 (10단 띠) */}
+        <div className="absolute inset-0 flex flex-col" aria-hidden>
+          {Array.from({ length: 10 }, (_, i) => <SkyBand key={i} p={p} i={i} />)}
+        </div>
+        <Stars />
 
-        {/* 건너뛰기 */}
-        <a href="#info" className="absolute top-4 right-4 z-30 text-sm font-bold px-4 py-2 rounded-full bg-white/15 backdrop-blur border border-white/30">
-          건너뛰기 ▸
-        </a>
+        {/* 달 → 해 */}
+        <div style={{ opacity: downCss(0.35, 0.6) }} className="absolute right-[10%] top-[9vh]" aria-hidden>
+          <Sprite rows={MOON} palette={MOON_PAL} scale={1.2} />
+        </div>
+        <div style={{ opacity: upCss(0.8, 0.84), transform: `translateY(calc(45vh * ${downCss(0.8, 0.97)}))` }} className="absolute right-[12%] top-[22vh]" aria-hidden>
+          <Sprite rows={SUN} palette={SUN_PAL} scale={1.6} />
+        </div>
 
-        {/* 자막 */}
-        <Caption p={p} range={[0.0, 0.03, 0.13, 0.18]} title="내성초 친구들이 클릭온 AI를 시작했어요" sub="하나, 둘… 클릭! 새로운 AI 세상으로" />
-        <Caption p={p} range={[0.2, 0.24, 0.38, 0.44]} title="인증서가 하나씩 모여요" sub="체험하고, 코딩하고, 데이터를 만나며 받은 인증서!" />
-        <Caption p={p} range={[0.44, 0.48, 0.6, 0.64]} title="AI·디지털 능력이 로켓의 연료가 돼요" sub="배움이 쌓일수록 추진력이 가득 차오릅니다" />
-        <Caption p={p} range={[0.78, 0.82, 0.9, 0.95]} title="더 높이, 더 밝은 미래를 향해!" sub="우리가 함께 쏘아 올린 로켓이 하늘을 가릅니다" />
+        <a href="#info" className="absolute top-3 right-3 z-30 px-box px-3 py-1.5 text-xs md:text-sm">SKIP ▶</a>
+        <Hud p={p} />
 
-        <ClickScene p={p} />
+        <Dialog range={[0, 0.03, 0.13, 0.18]} title="내성초 친구들이 클릭온 AI를 시작했어요" sub="하나, 둘… 클릭! 새로운 AI 세상으로" />
+        <Dialog range={[0.2, 0.24, 0.38, 0.44]} title="인증서가 하나씩 모여요" sub="체험하고, 코딩하고, 데이터를 만나며 받은 인증서!" />
+        <Dialog range={[0.44, 0.48, 0.6, 0.64]} title="AI·디지털 능력이 로켓의 연료가 돼요" sub="배움이 쌓일수록 추진력이 가득 차오릅니다" />
+        <Dialog range={[0.78, 0.82, 0.9, 0.95]} title="더 높이, 더 밝은 미래를 향해!" sub="우리가 함께 쏘아 올린 로켓이 하늘을 가릅니다" />
 
-        {/* 목표 숫자 */}
-        <motion.div style={{ opacity: goalOpacity }} className="absolute inset-x-0 top-[27vh] text-center pointer-events-none">
-          <motion.span className="text-6xl md:text-8xl font-black text-yellow-300 tabular-nums drop-shadow-[0_0_24px_rgba(253,224,71,.5)]">{goalText}</motion.span>
-          <div className="font-black text-indigo-100">목표 인증서</div>
+        {/* 구름 */}
+        <Cloud p={p} left="8%" scale={2} start={0.74} />
+        <Cloud p={p} left="62%" scale={2.6} start={0.77} />
+        <Cloud p={p} left="30%" scale={2.2} start={0.8} />
+        <Cloud p={p} left="76%" scale={1.8} start={0.83} />
+        <Cloud p={p} left="4%" scale={2.4} start={0.86} />
+
+        {/* 지상 */}
+        <motion.div style={{ y: groundY, height: GROUND }} className="absolute inset-x-0 bottom-0" aria-hidden>
+          <div className="absolute inset-x-0 top-0" style={{ height: 'calc(var(--px) * 2)', background: 'repeating-linear-gradient(90deg,#38b764 0 calc(var(--px)*4),#a7f070 calc(var(--px)*4) calc(var(--px)*6),#38b764 calc(var(--px)*6) calc(var(--px)*10))' }} />
+          <div className="absolute inset-x-0 bottom-0" style={{ top: 'calc(var(--px) * 2)', background: 'repeating-linear-gradient(0deg,#733e39 0 calc(var(--px)*4),#5c2f2b calc(var(--px)*4) calc(var(--px)*8))' }} />
         </motion.div>
 
-        {/* 인증서 비행 */}
-        {[
-          { f: [-42, -10], s: 0.2 }, { f: [40, -16], s: 0.23 }, { f: [-38, 22], s: 0.26 }, { f: [42, 20], s: 0.29 },
-          { f: [-20, -26], s: 0.31 }, { f: [22, 30], s: 0.34 }, { f: [-44, 4], s: 0.36 }, { f: [44, 2], s: 0.38 },
-        ].map((c, i) => (
-          <Flyer key={i} p={p} i={i} from={c.f as [number, number]} to={[c.s, c.s + 0.06]} label={<Cert n={i + 1} />} />
-        ))}
+        {/* 학교 · 아이들 · 발사대 (지면과 함께 내려감) */}
+        <motion.div style={{ y: groundY }} className="absolute inset-0 pointer-events-none">
+          <div className="hidden sm:block absolute left-[3%]" style={{ bottom: GROUND }}>
+            <Sprite rows={SCHOOL} palette={SCHOOL_PAL} scale={1.4} />
+          </div>
+          <Kids p={p} />
+          {/* 발사대 */}
+          <div className="absolute left-1/2 -translate-x-1/2" style={{ bottom: GROUND, width: 'calc(var(--px) * 20)', height: 'calc(var(--px) * 2)', background: P.grey, boxShadow: `inset 0 calc(var(--px)*0.7) 0 ${P.lgrey}` }} />
+          <div className="absolute" style={{ left: 'calc(50% - var(--px) * 15)', bottom: GROUND, width: 'calc(var(--px) * 3)', height: 'calc(var(--px) * 26)', background: `repeating-linear-gradient(0deg, ${P.grey} 0 calc(var(--px)*2), ${P.lgrey} calc(var(--px)*2) calc(var(--px)*3))` }} />
+        </motion.div>
 
-        {/* 연료(AI 능력) 비행 */}
+        {/* 1장: CLICK! */}
+        <div style={{ opacity: winCss(0, 0.03, 0.13, 0.18) }} className="absolute inset-0 pointer-events-none" aria-hidden>
+          {KIDS.map((k, i) => (
+            <div key={i} className="absolute" style={{ left: `calc(50% + var(--px) * ${k.x - 5})`, bottom: `calc(${GROUND} + var(--px) * 17)` }}>
+              <span className={`${i % 2 ? 'px-slow-a' : 'px-slow-b'} block px-2 py-0.5 text-[10px] md:text-xs font-black`} style={{ background: P.yellow, color: P.ink, border: `2px solid ${P.ink}` }}>CLICK!</span>
+            </div>
+          ))}
+        </div>
+
+        {/* 2장: 인증서가 아이들 손에서 로켓으로 */}
+        {KIDS.flatMap((k, i) => [0, 1].map((r) => {
+          const s = 0.2 + (i * 2 + r) * 0.024;
+          return (
+            <Flyer key={`c${i}${r}`} p={p} s={s} e={s + 0.06} from={[k.x, 12]}>
+              <Sprite rows={CERT} palette={CERT_PAL} scale={1.2} />
+            </Flyer>
+          );
+        }))}
+
+        {/* 3장: 연료 배터리가 하늘에서 로켓으로 */}
         {[
-          { f: [-40, -8], s: 0.44, icon: '🎨', t: 'AI 활용', h: '#5ef2ff' },
-          { f: [40, -12], s: 0.48, icon: '💻', t: 'AI 코딩', h: '#c6ff4d' },
-          { f: [-38, 20], s: 0.52, icon: '📊', t: '데이터', h: '#ffd54a' },
-          { f: [40, 20], s: 0.56, icon: '🧰', t: 'AI 서비스', h: '#ff9ad5' },
-        ].map((c, i) => (
-          <Flyer key={c.t} p={p} i={i} from={c.f as [number, number]} to={[c.s, c.s + 0.06]} label={<Fuel icon={c.icon} text={c.t} hue={c.h} />} />
+          { x: -46, c: '#29adff', t: 'AI 활용', s: 0.44 },
+          { x: 46, c: '#a7f070', t: 'AI 코딩', s: 0.48 },
+          { x: -46, c: '#ffec27', t: '데이터', s: 0.52 },
+          { x: 46, c: '#ff77a8', t: 'AI 서비스', s: 0.56 },
+        ].map((b) => (
+          <Flyer key={b.t} p={p} s={b.s} e={b.s + 0.06} from={[b.x, 80]}>
+            <div className="flex flex-col items-center">
+              <Sprite rows={BATTERY} palette={batteryPal(b.c)} scale={1.5} />
+              <span className="mt-1 px-1.5 text-[10px] md:text-xs font-black whitespace-nowrap" style={{ background: P.ink }}>{b.t}</span>
+            </div>
+          </Flyer>
         ))}
 
         {/* 카운트다운 */}
-        {[[c3, '3'], [c2, '2'], [c1, '1']].map(([o, n]) => (
-          <motion.div key={n as string} style={{ opacity: o as MotionValue<number> }} className="absolute inset-x-0 top-[18vh] text-center text-[28vw] md:text-[16rem] font-black leading-none text-white pointer-events-none">
-            {n as string}
-          </motion.div>
+        {([[winCss(0.62, 0.635, 0.655, 0.665), '3'], [winCss(0.665, 0.68, 0.7, 0.71), '2'], [winCss(0.71, 0.725, 0.74, 0.75), '1']] as const).map(([o, n]) => (
+          <div key={n} style={{ opacity: o }} className="absolute inset-x-0 top-[22vh] text-center font-black leading-none pointer-events-none text-[26vw] md:text-[14rem]" >
+            <span style={{ color: '#fff', textShadow: `calc(var(--px)*1.5) calc(var(--px)*1.5) 0 ${P.red}` }}>{n}</span>
+          </div>
         ))}
 
-        {/* 구름 */}
-        <Cloud p={p} left="8%" size={180} start={0.74} />
-        <Cloud p={p} left="62%" size={240} start={0.77} />
-        <Cloud p={p} left="30%" size={200} start={0.8} />
-        <Cloud p={p} left="75%" size={160} start={0.83} />
-        <Cloud p={p} left="5%" size={220} start={0.86} />
-
-        {/* 지상 + 발사대 */}
-        <motion.div style={{ y: groundY }} className="absolute inset-x-0 bottom-0 h-[22vh]" aria-hidden>
-          <div className="absolute inset-x-0 bottom-0 h-full bg-[#0b1230]" style={{ clipPath: 'ellipse(75% 100% at 50% 100%)' }} />
-          <div className="absolute left-1/2 -translate-x-1/2 bottom-[16vh] w-44 h-3 bg-slate-500 rounded" />
-          <div className="absolute left-1/2 -translate-x-[110px] bottom-[16vh] w-2 h-28 bg-slate-500" />
-          <div className="absolute left-1/2 translate-x-[102px] bottom-[16vh] w-2 h-28 bg-slate-500" />
-        </motion.div>
-
         {/* 로켓 */}
-        <motion.div style={{ y: rocketY, x: shake }} className="absolute left-1/2 -translate-x-1/2 bottom-[19vh] z-10">
-          <motion.div style={{ opacity: glow }} className="absolute -inset-10 rounded-full bg-lime-300 blur-3xl" aria-hidden />
-          <div className="relative">
-            <Rocket fuel={fuel} />
-            <Flame strength={flame} />
+        <Puffs />
+        <motion.div style={{ y: rocketY, x: shake, bottom: `calc(${GROUND} + var(--px) * 2)` }} className="absolute left-1/2 z-10" >
+          <div style={{ transform: 'translateX(-50%)' }} className="relative">
+            <RocketSprite fuel={fuel} />
+            <Flame />
           </div>
         </motion.div>
 
-        {/* 스크롤 안내 */}
-        <motion.div style={{ opacity: hintOpacity }} className="absolute bottom-6 inset-x-0 text-center z-20 text-sm font-bold text-indigo-100">
-          <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 1.6, repeat: Infinity }}>
-            ▼ 스크롤해서 로켓을 발사해요
-          </motion.div>
-        </motion.div>
+        <div style={{ opacity: downCss(0, 0.04) }} className="absolute bottom-3 inset-x-0 text-center z-20 text-xs md:text-sm">
+          <span className="px-slow-a inline-block">▼ 스크롤해서 로켓을 발사해요</span>
+        </div>
 
         {/* 피날레 */}
-        <motion.div style={{ opacity: finalOpacity, pointerEvents: finalPointer }} className="absolute inset-0 z-20 flex flex-col items-center justify-end pb-[14vh] text-center px-6">
-          <p className="text-sm font-black tracking-widest text-slate-900/70">2026 클릭온 AI {SEASON.name} · D-{daysLeft()}</p>
-          <h1 className="mt-2 text-4xl md:text-7xl font-black text-slate-900 leading-tight">
-            내성초 AI 마스터 챌린지 <span className="text-indigo-700">2기</span>
-          </h1>
-          <p className="mt-3 font-bold text-slate-800 text-lg">다 같이 로켓을 쏘아 올려요 🚀</p>
-          <Link href="/board" className="mt-6 inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-slate-900 text-white font-black text-xl shadow-2xl hover:scale-105 transition-transform">
-            게시판 입장하기 <ArrowRight className="w-6 h-6" />
-          </Link>
-        </motion.div>
-      </motion.div>
+        <Finale p={p}>
+          <div className="px-box p-6 md:p-10 text-center max-w-xl">
+            <p className="text-xs md:text-sm" style={{ color: P.lime }}>2026 클릭온 AI {SEASON.name} · D-{daysLeft()}</p>
+            <h1 className="mt-3 font-black text-2xl md:text-5xl leading-snug text-white">
+              내성초 AI 마스터<br />챌린지 <span style={{ color: P.yellow }}>2기</span>
+            </h1>
+            <p className="mt-3 text-sm md:text-lg">다 같이 로켓을 쏘아 올려요!</p>
+            <Link href="/board" className="mt-6 inline-block px-6 py-3 font-black text-lg md:text-2xl" style={{ background: P.yellow, color: P.ink, border: `4px solid ${P.ink}`, boxShadow: '4px 4px 0 #000' }}>
+              <span className="px-slow-a inline-block">▶</span> PRESS START
+            </Link>
+          </div>
+        </Finale>
+      </div>
     </div>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* 모션 줄이기 설정용 정적 히어로                                       */
-/* ------------------------------------------------------------------ */
+function Finale({ p, children }: { p: MotionValue<number>; children: React.ReactNode }) {
+  const [on, setOn] = useState(false);
+  useMotionValueEvent(p, 'change', (v) => setOn((c) => (c === v > 0.93 ? c : v > 0.93)));
+  return (
+    <div style={{ opacity: upCss(0.9, 0.97), pointerEvents: on ? 'auto' : 'none' }} className="absolute inset-0 z-20 flex items-center justify-center px-4">
+      {children}
+    </div>
+  );
+}
 
 function StaticHero() {
   return (
-    <section className="min-h-screen flex flex-col items-center justify-center text-center px-6 bg-gradient-to-b from-[#0b1026] to-[#3b2a8c]">
-      <div className="text-7xl">🚀</div>
-      <h1 className="mt-4 text-4xl md:text-6xl font-black">내성초 AI 마스터 챌린지 2기</h1>
-      <p className="mt-3 font-bold text-indigo-100">클릭온 AI로 쌓은 배움이 우리의 미래를 쏘아 올려요</p>
-      <Link href="/board" className="mt-8 inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-yellow-300 text-slate-900 font-black text-xl">
-        게시판 입장하기 <ArrowRight className="w-6 h-6" />
+    <section className="min-h-screen flex flex-col items-center justify-center text-center px-6 font-px" style={{ background: SKY[0][4], ['--px' as string]: '6px' }}>
+      <Sprite rows={rocketRows(ROCKET_LEVELS)} palette={ROCKET_PAL} />
+      <h1 className="mt-6 text-3xl md:text-5xl font-black">내성초 AI 마스터 챌린지 2기</h1>
+      <p className="mt-3">클릭온 AI로 쌓은 배움이 우리의 미래를 쏘아 올려요</p>
+      <Link href="/board" className="mt-8 inline-block px-6 py-3 font-black text-xl" style={{ background: P.yellow, color: P.ink, border: `4px solid ${P.ink}`, boxShadow: '4px 4px 0 #000' }}>
+        ▶ PRESS START
       </Link>
     </section>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* 하단 안내 섹션                                                      */
+/* 하단 안내 (픽셀 UI)                                                  */
 /* ------------------------------------------------------------------ */
 
 const CHANGES = [
@@ -378,57 +397,57 @@ const CHANGES = [
 ];
 
 function Info() {
-  const reduce = useReducedMotion();
   return (
-    <div id="info" className="bg-[#0b1026] text-white">
+    <div id="info" className="font-px text-white" style={{ background: SKY[0][0] }}>
       <section className="px-6 py-24">
-        <h2 className="text-3xl md:text-4xl font-black text-center mb-14">숫자로 보는 클릭온 AI {SEASON.name}</h2>
-        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-5">
+        <h2 className="text-2xl md:text-4xl font-black text-center mb-12">STATUS · 클릭온 AI {SEASON.name}</h2>
+        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { n: SEASON.programs, s: '개', l: '프로그램' },
             { n: SEASON.institutions, s: '개', l: '참여 기관' },
             { n: SEASON.newPrograms, s: '개', l: '신규 프로그램' },
             { n: 42, s: '일', l: '10/15 ~ 11/25' },
           ].map((it) => (
-            <motion.div key={it.l} initial={{ opacity: 0, y: 40 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-60px' }} className="rounded-3xl bg-white/10 border-2 border-white/30 p-6 text-center">
-              <div className="text-5xl md:text-6xl font-black text-yellow-300"><CountUp to={it.n} suffix={it.s} /></div>
-              <div className="mt-2 font-bold text-indigo-100">{it.l}</div>
+            <motion.div key={it.l} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-60px' }} className="px-box p-5 text-center">
+              <div className="text-4xl md:text-5xl font-black" style={{ color: P.yellow }}><CountUp to={it.n} suffix={it.s} /></div>
+              <div className="mt-2 text-sm">{it.l}</div>
             </motion.div>
           ))}
         </div>
-        <div className="max-w-5xl mx-auto mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {SEASON.areas.map((a, i) => (
-            <motion.div key={a.name} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }} whileHover={reduce ? undefined : { y: -6 }} className="rounded-3xl bg-white text-slate-900 p-6 border-4 border-slate-900 shadow-[5px_5px_0_0_#0f172a]">
-              <div className="text-4xl">{a.icon}</div>
-              <div className="mt-3 text-xl font-black">{a.name}</div>
-              <div className="font-bold text-indigo-600">{a.count}개 프로그램</div>
-              {a.note && <span className="inline-block mt-2 px-2 py-0.5 text-xs font-black bg-pink-500 text-white rounded-full">{a.note}</span>}
-            </motion.div>
+        <div className="max-w-5xl mx-auto mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {SEASON.areas.map((a) => (
+            <div key={a.name} className="p-5" style={{ background: P.white, color: P.ink, border: `4px solid ${P.ink}`, boxShadow: '4px 4px 0 #000' }}>
+              <div className="text-3xl">{a.icon}</div>
+              <div className="mt-2 text-lg font-black">{a.name}</div>
+              <div className="font-bold" style={{ color: '#3b5dc9' }}>{a.count}개 프로그램</div>
+              {a.note && <span className="inline-block mt-2 px-2 py-0.5 text-xs font-black" style={{ background: P.red, color: '#fff' }}>{a.note}</span>}
+            </div>
           ))}
         </div>
       </section>
 
       <section className="px-6 pb-24">
-        <h2 className="text-3xl md:text-4xl font-black text-center mb-14">🔄 1기와 이렇게 달라졌어요</h2>
-        <div className="max-w-3xl mx-auto relative">
-          <div className="absolute left-5 top-0 bottom-0 w-1 bg-gradient-to-b from-yellow-300 to-pink-400 rounded" />
-          {CHANGES.map((c, i) => (
-            <motion.div key={c.title} initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: '-40px' }} className="relative pl-16 pb-10">
-              <div className="absolute left-0 top-0 w-11 h-11 rounded-full bg-yellow-300 text-slate-900 font-black text-xs flex items-center justify-center border-4 border-[#0b1026]">{c.badge}</div>
-              <h3 className="text-xl font-black">{i + 1}. {c.title}</h3>
-              <p className="mt-1 text-indigo-200 font-bold">{c.body}</p>
-            </motion.div>
+        <h2 className="text-2xl md:text-4xl font-black text-center mb-12">PATCH NOTES · 1기와 달라진 점</h2>
+        <ul className="max-w-3xl mx-auto space-y-4">
+          {CHANGES.map((c) => (
+            <motion.li key={c.title} initial={{ opacity: 0, x: -24 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: '-40px' }} className="px-box p-4 flex gap-4 items-start">
+              <span className="shrink-0 px-2 py-1 text-xs font-black" style={{ background: c.badge === 'NEW' ? P.red : P.cyan, color: '#fff' }}>{c.badge}</span>
+              <div>
+                <div className="font-black">{c.title}</div>
+                <div className="text-sm mt-1" style={{ color: P.lgrey }}>{c.body}</div>
+              </div>
+            </motion.li>
           ))}
-        </div>
-        <p className="max-w-3xl mx-auto text-xs text-slate-400">출처: 클릭온 AI 공식 누리집, 과기정통부 보도자료. 세부 내용은 공식 안내서를 확인하세요.</p>
+        </ul>
+        <p className="max-w-3xl mx-auto mt-4 text-xs" style={{ color: P.grey }}>출처: 클릭온 AI 공식 누리집, 과기정통부 보도자료. 세부 내용은 공식 안내서를 확인하세요.</p>
       </section>
 
       <section className="px-6 pb-24 text-center">
-        <Link href="/board" className="inline-flex items-center gap-2 px-10 py-5 rounded-2xl bg-yellow-300 text-slate-900 font-black text-2xl border-4 border-slate-900 shadow-[6px_6px_0_0_#0f172a]">
-          🚀 지금 참여하러 가기
+        <Link href="/board" className="inline-block px-8 py-4 font-black text-xl md:text-2xl" style={{ background: P.yellow, color: P.ink, border: `4px solid ${P.ink}`, boxShadow: '5px 5px 0 #000' }}>
+          ▶ 지금 참여하러 가기
         </Link>
         <div className="mt-6">
-          <a href={SEASON.officialUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-bold text-indigo-200 underline">
+          <a href={SEASON.officialUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm underline" style={{ color: P.lgrey }}>
             공식 클릭온 AI 바로가기 <ExternalLink className="w-4 h-4" />
           </a>
         </div>
@@ -440,7 +459,7 @@ function Info() {
 export default function Intro() {
   const reduce = useReducedMotion();
   return (
-    <main className="bg-[#0b1026] text-white overflow-x-clip">
+    <main className="overflow-x-clip" style={{ background: SKY[0][0] }}>
       {reduce ? <StaticHero /> : <Story />}
       <Info />
     </main>

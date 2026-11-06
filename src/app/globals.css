@@ -185,3 +185,37 @@ body {
   border: 1px solid var(--mc-line);
   box-shadow: none;
 }
+
+/* ===== 픽셀아트 인트로 ===== */
+@font-face {
+  font-family: 'Galmuri11';
+  src: url('/fonts/Galmuri11.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Galmuri11';
+  src: url('/fonts/Galmuri11-Bold.woff2') format('woff2');
+  font-weight: 700 900;
+  font-display: swap;
+}
+.font-px {
+  font-family: 'Galmuri11', 'Outfit', system-ui, sans-serif;
+  -webkit-font-smoothing: none;
+}
+@keyframes px-blink-a { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes px-blink-b { 0%, 49% { opacity: 0; } 50%, 100% { opacity: 1; } }
+.px-a { animation: px-blink-a 0.5s steps(1) infinite; }
+.px-b { animation: px-blink-b 0.5s steps(1) infinite; }
+.px-slow-a { animation: px-blink-a 1.2s steps(1) infinite; }
+.px-slow-b { animation: px-blink-b 1.2s steps(1) infinite; }
+@keyframes px-puff {
+  0% { transform: translate(0, 0) scale(0.5); opacity: 1; }
+  100% { transform: translate(var(--dx), -7vh) scale(2.2); opacity: 0; }
+}
+.px-puff { animation: px-puff 0.8s steps(5) infinite; }
+.px-box {
+  background: #1a1c2c;
+  border: 4px solid #f4f4f4;
+  box-shadow: 4px 4px 0 0 #000;
+}
