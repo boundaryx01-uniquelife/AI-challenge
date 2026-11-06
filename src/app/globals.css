@@ -122,3 +122,66 @@ body {
   transform: translate(2px, 2px);
   box-shadow: 1px 1px 0px 0px var(--border);
 }
+
+/* ===== 시즌2 "미션 컨트롤" 테마 (.mc 범위 한정) ===== */
+.mc {
+  --mc-bg: #060a18;
+  --mc-surface: rgba(255, 255, 255, 0.06);
+  --mc-line: rgba(255, 255, 255, 0.12);
+  --mc-text: #eef2ff;
+  --mc-dim: #94a3c4;
+  --mc-cyan: #5ef2ff;
+  --mc-lime: #c6ff4d;
+  --mc-violet: #8b7bff;
+  --mc-pink: #ff6ec7;
+  background: var(--mc-bg);
+  color: var(--mc-text);
+  min-height: 100vh;
+  background-image:
+    radial-gradient(60rem 40rem at 85% -10%, rgba(139, 123, 255, 0.22), transparent 60%),
+    radial-gradient(50rem 40rem at -10% 110%, rgba(94, 242, 255, 0.14), transparent 60%);
+}
+.mc-glass {
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-line);
+  border-radius: 1.25rem;
+  backdrop-filter: blur(14px);
+}
+.mc-chip {
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--mc-line);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--mc-dim);
+  background: transparent;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.mc-chip[data-on='true'] {
+  background: var(--mc-lime);
+  color: #0b1200;
+  border-color: var(--mc-lime);
+}
+.mc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.4rem;
+  border-radius: 999px;
+  font-weight: 800;
+  background: var(--mc-lime);
+  color: #0b1200;
+  transition: transform 0.15s, box-shadow 0.2s;
+  box-shadow: 0 0 0 0 rgba(198, 255, 77, 0.5);
+}
+.mc-btn:hover { box-shadow: 0 0 28px 2px rgba(198, 255, 77, 0.35); }
+.mc-btn:active { transform: scale(0.97); }
+.mc-btn:disabled { opacity: 0.5; }
+.mc-btn-ghost {
+  background: var(--mc-surface);
+  color: var(--mc-text);
+  border: 1px solid var(--mc-line);
+  box-shadow: none;
+}
