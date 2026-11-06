@@ -81,6 +81,7 @@ export async function GET(request: Request) {
         studentName: isAdmin ? item.student_name : maskName(item.student_name),
         imageUrl: item.image_url,
         createdAt: item.created_at,
+        isPreviousSeason: new Date(item.created_at) < new Date(seasonStartISO()),
       }));
 
       return NextResponse.json({ success: true, data: adapted });
@@ -95,6 +96,7 @@ export async function GET(request: Request) {
 
       const adaptedCertificates = certificates.map((cert) => ({
         ...cert,
+        isPreviousSeason: cert.createdAt < new Date(seasonStartISO()),
         studentName: isAdmin ? cert.studentName : maskName(cert.studentName),
       }));
 

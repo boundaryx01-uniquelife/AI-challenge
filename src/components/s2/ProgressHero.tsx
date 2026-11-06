@@ -68,6 +68,9 @@ export default function ProgressHero({ certificates }: { certificates: Certifica
         <p className="mt-2 font-semibold" style={{ color: 'var(--mc-dim)' }}>
           전교생의 인증서가 모이면 로켓이 궤도에 진입해요.
         </p>
+        <p className="mt-1 text-xs font-bold" style={{ color: 'var(--mc-dim)' }}>
+          ※ 2026년 11월 6일 이후에 올린 인증만 인정돼요.
+        </p>
         <div className="grid grid-cols-3 gap-3 mt-6">
           {[
             { k: '남은 기간', v: `D-${daysLeft()}`, bg: '#fff3c4' },
