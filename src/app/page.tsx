@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { ExternalLink } from 'lucide-react';
 import {
   motion,
   useReducedMotion,
@@ -209,7 +210,7 @@ function Kids({ p }: { p: MotionValue<number> }) {
 /* 스토리                                                              */
 /* ------------------------------------------------------------------ */
 
-const DURATION = 26; // 초: 자동 재생 길이
+const DURATION = 13; // 초: 자동 재생 길이
 
 function Story() {
   const reduce = useReducedMotion();
@@ -217,17 +218,28 @@ function Story() {
   const p = useMotionValue(0);
   useMotionValueEvent(p, 'change', (v) => stage.current?.style.setProperty('--p', String(v)));
 
-  // 열리자마자 자동 재생 (모션 줄이기 설정이면 마지막 화면으로 바로)
+  // phase: 0 = 영상 재생 중, 2 = 마지막 장면 (상태 공유용 MotionValue)
+  const phase = useMotionValue(0);
+  const controls = useRef<ReturnType<typeof animate> | null>(null);
   const play = React.useCallback(() => {
+    controls.current?.stop();
+    phase.set(0);
     p.set(0);
-    return animate(p, 1, { duration: DURATION, ease: 'linear' });
-  }, [p]);
+    controls.current = animate(p, 1, { duration: DURATION, ease: 'linear', onComplete: () => phase.set(2) });
+  }, [p, phase]);
+  const skip = React.useCallback(() => {
+    controls.current?.stop();
+    p.set(1);
+    phase.set(2);
+  }, [p, phase]);
+
+  // 열리자마자 자동 재생 (모션 줄이기 설정이면 마지막 장면으로 바로)
   useEffect(() => {
     stage.current?.style.setProperty('--p', String(p.get()));
-    if (reduce) { p.set(1); return; }
-    const controls = play();
-    return () => controls.stop();
-  }, [p, play, reduce]);
+    if (reduce) { p.set(1); phase.set(2); return; }
+    play();
+    return () => controls.current?.stop();
+  }, [p, phase, play, reduce]);
 
   const fuel = useTransform(p, [0.42, 0.62], [0, 1]);
   const rocketY = useTransform(p, [0.72, 0.93], ['0vh', '-125vh']);
@@ -252,7 +264,6 @@ function Story() {
           <Sprite rows={SUN} palette={SUN_PAL} scale={1.6} />
         </div>
 
-        <Link href="/board" className="absolute top-3 right-3 z-30 px-box px-3 py-1.5 text-xs md:text-sm">SKIP ▶</Link>
         <Hud p={p} />
 
         <Dialog range={[0, 0.03, 0.13, 0.18]} title="내성초 친구들이 클릭온 AI를 시작했어요" sub="하나, 둘… 클릭! 새로운 AI 세상으로" />
@@ -334,9 +345,130 @@ function Story() {
           </div>
         </motion.div>
 
-        {/* 피날레 */}
-        <Finale p={p}>
-          <div className="px-box p-6 md:p-10 text-center max-w-xl">
+        <Overlay phase={phase} onSkip={skip} onReplay={play} />
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* 정보 슬라이드 · 마지막 장면 · 정보 패널 (스크롤 없음)                  */
+/* ------------------------------------------------------------------ */
+
+const STATS = [
+  { n: SEASON.programs, s: '개', l: '프로그램' },
+  { n: SEASON.institutions, s: '곳', l: '참여 기관' },
+  { n: SEASON.newPrograms, s: '개', l: '신규 프로그램' },
+  { n: 42, s: '일', l: '10/15 ~ 11/25' },
+];
+const CHANGES = [
+  { badge: 'NEW', title: '신규 프로그램 10개', body: '시즌1 참가자 의견을 반영해 난이도를 다양화했어요.' },
+  { badge: 'UP', title: '44개 프로그램 · 15개 기관', body: 'EBS를 포함한 15개 기관이 참여해요.' },
+  { badge: 'NEW', title: '인증서 랭킹 이벤트', body: '이수 인증서 수량으로 순위를 겨뤄요. 우리 학교 랭킹보드와 딱 맞아요!' },
+  { badge: 'UP', title: '체험·데이터 분야 강화', body: 'AI 활용 체험과 AI 데이터 활용 부문이 더 풍성해졌어요.' },
+];
+const SLIDES = 1 + CHANGES.length; // 0: 숫자·분야, 1~4: 달라진 점
+
+function StatsView() {
+  return (
+    <div>
+      <div className="grid grid-cols-4 gap-2 md:gap-3">
+        {STATS.map((it) => (
+          <div key={it.l} className="px-box p-2 md:p-3 text-center">
+            <div className="text-xl md:text-4xl font-black" style={{ color: P.yellow }}>{it.n}{it.s}</div>
+            <div className="mt-1 text-[10px] md:text-xs">{it.l}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+        {SEASON.areas.map((a) => (
+          <div key={a.name} className="p-2 md:p-3 text-left" style={{ background: P.white, color: P.ink, border: `3px solid ${P.ink}`, boxShadow: '3px 3px 0 #000' }}>
+            <div className="text-lg md:text-2xl">{a.icon}</div>
+            <div className="text-xs md:text-sm font-black">{a.name}</div>
+            <div className="text-[10px] md:text-xs font-bold" style={{ color: '#3b5dc9' }}>{a.count}개 프로그램</div>
+            {a.note && <span className="inline-block mt-1 px-1.5 text-[10px] font-black" style={{ background: P.red, color: '#fff' }}>{a.note}</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChangeRow({ c, big = false }: { c: (typeof CHANGES)[number]; big?: boolean }) {
+  return (
+    <div className={`flex gap-3 items-start text-left ${big ? 'md:gap-5 md:p-4' : ''}`}>
+      <span className="shrink-0 px-2 py-1 text-xs font-black" style={{ background: c.badge === 'NEW' ? P.red : P.cyan, color: '#fff' }}>{c.badge}</span>
+      <div>
+        <div className={`font-black ${big ? 'text-lg md:text-3xl' : 'text-sm md:text-lg'}`}>{c.title}</div>
+        <div className={`mt-1 ${big ? 'text-sm md:text-lg' : 'text-xs md:text-sm'}`} style={{ color: P.lgrey }}>{c.body}</div>
+      </div>
+    </div>
+  );
+}
+
+/** 버튼으로 넘기는 정보 슬라이드 (자동 재생 없음, 스크롤 없음) */
+function InfoSlides({ onClose }: { onClose: () => void }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') setI((v) => Math.max(0, v - 1));
+      if (e.key === 'ArrowRight') setI((v) => Math.min(SLIDES - 1, v + 1));
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
+  const btn = 'px-box px-4 py-2 text-sm md:text-base font-black disabled:opacity-30';
+  return (
+    <div className="absolute inset-0 z-40 flex items-center justify-center p-3 md:p-6 bg-black/60">
+      <div className="px-box px-in w-full max-w-2xl p-4 md:p-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-black text-base md:text-2xl">
+            {i === 0 ? '클릭온 AI 시즌2' : '1기와 달라진 점'}
+            {i > 0 && <span className="ml-2 text-xs md:text-sm" style={{ color: P.lime }}>{i} / {CHANGES.length}</span>}
+          </h2>
+          <button onClick={onClose} className="px-box px-2 py-1 text-xs" aria-label="닫기">✕</button>
+        </div>
+        <div key={i} className="px-in min-h-[230px] md:min-h-[270px] flex flex-col justify-center">
+          {i === 0 ? <StatsView /> : <ChangeRow c={CHANGES[i - 1]} big />}
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <button className={btn} disabled={i === 0} onClick={() => setI(i - 1)} aria-label="이전">◀ 이전</button>
+          <div className="flex gap-2">
+            {Array.from({ length: SLIDES }, (_, k) => (
+              <button key={k} onClick={() => setI(k)} aria-label={`${k + 1}번 슬라이드`} style={{ width: 12, height: 12, background: k === i ? P.yellow : '#3a3f5e' }} />
+            ))}
+          </div>
+          <button className={btn} disabled={i === SLIDES - 1} onClick={() => setI(i + 1)} aria-label="다음">다음 ▶</button>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10px] md:text-xs" style={{ color: P.grey }}>
+          <span>출처: 클릭온 AI 공식 누리집, 과기정통부 보도자료</span>
+          <a href={SEASON.officialUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline" style={{ color: P.lgrey }}>
+            공식 클릭온 AI <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Overlay({ phase, onSkip, onReplay }: { phase: MotionValue<number>; onSkip: () => void; onReplay: () => void }) {
+  const [ph, setPh] = useState(0);
+  const [panel, setPanel] = useState(false);
+  useMotionValueEvent(phase, 'change', (v) => {
+    setPh(v);
+    if (v === 0) setPanel(false);
+  });
+
+  return (
+    <>
+      {ph < 2 && (
+        <button onClick={onSkip} className="absolute top-3 right-3 z-30 px-box px-3 py-1.5 text-xs md:text-sm">SKIP ▶</button>
+      )}
+
+      {ph === 2 && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center px-4">
+          <div className="px-box px-in p-6 md:p-10 text-center max-w-xl">
             <p className="text-xs md:text-sm" style={{ color: P.lime }}>2026 클릭온 AI {SEASON.name} · D-{daysLeft()}</p>
             <h1 className="mt-3 font-black text-2xl md:text-5xl leading-snug text-white">
               내성초 AI 마스터<br />챌린지 <span style={{ color: P.yellow }}>2기</span>
@@ -350,22 +482,17 @@ function Story() {
               <Link href="/board" className="inline-block px-6 py-3 font-black text-lg md:text-2xl" style={{ background: P.yellow, color: P.ink, border: `4px solid ${P.ink}`, boxShadow: '4px 4px 0 #000' }}>
                 <span className="px-slow-a inline-block">▶</span> PRESS START
               </Link>
-              <button onClick={play} className="px-box px-3 py-2 text-xs md:text-sm" aria-label="다시 보기">↻ REPLAY</button>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <button onClick={() => setPanel(true)} className="px-box px-3 py-2 text-xs md:text-sm">📋 1기와 달라진 점</button>
+              <button onClick={onReplay} className="px-box px-3 py-2 text-xs md:text-sm" aria-label="다시 보기">↻ REPLAY</button>
             </div>
           </div>
-        </Finale>
-      </div>
-    </div>
-  );
-}
+        </div>
+      )}
 
-function Finale({ p, children }: { p: MotionValue<number>; children: React.ReactNode }) {
-  const [on, setOn] = useState(false);
-  useMotionValueEvent(p, 'change', (v) => setOn((c) => (c === v > 0.93 ? c : v > 0.93)));
-  return (
-    <div style={{ opacity: upCss(0.9, 0.97), pointerEvents: on ? 'auto' : 'none' }} className="absolute inset-0 z-20 flex items-center justify-center px-4">
-      {children}
-    </div>
+      {panel && <InfoSlides onClose={() => setPanel(false)} />}
+    </>
   );
 }
 

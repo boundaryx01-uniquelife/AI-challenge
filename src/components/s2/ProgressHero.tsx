@@ -32,11 +32,11 @@ export default function ProgressHero({ certificates }: { certificates: Certifica
         <svg viewBox="0 0 220 220" className="w-full h-full -rotate-90">
           <defs>
             <linearGradient id="mcg" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#5ef2ff" />
-              <stop offset="100%" stopColor="#c6ff4d" />
+              <stop offset="0%" stopColor="#ff9f1c" />
+              <stop offset="100%" stopColor="#ff5d8f" />
             </linearGradient>
           </defs>
-          <circle cx="110" cy="110" r={R} fill="none" stroke="rgba(255,255,255,.1)" strokeWidth="14" />
+          <circle cx="110" cy="110" r={R} fill="none" stroke="#dbe9f7" strokeWidth="14" />
           <motion.circle
             cx="110" cy="110" r={R} fill="none" stroke="url(#mcg)" strokeWidth="14" strokeLinecap="round"
             strokeDasharray={C}
@@ -61,8 +61,8 @@ export default function ProgressHero({ certificates }: { certificates: Certifica
       </div>
 
       <div>
-        <p className="font-black tracking-widest text-xs" style={{ color: 'var(--mc-cyan)' }}>MISSION · {SEASON.name.toUpperCase()}</p>
-        <h2 className="text-3xl md:text-4xl font-black mt-1 leading-tight">
+        <p className="font-black text-sm" style={{ color: 'var(--k-blue)' }}>🚀 로켓 발사 미션 · {SEASON.name}</p>
+        <h2 className="text-2xl md:text-4xl font-black mt-1 leading-snug">
           {done ? '발사 성공! 🌌' : `${goal - total}개 더 모으면 발사!`}
         </h2>
         <p className="mt-2 font-semibold" style={{ color: 'var(--mc-dim)' }}>
@@ -70,12 +70,12 @@ export default function ProgressHero({ certificates }: { certificates: Certifica
         </p>
         <div className="grid grid-cols-3 gap-3 mt-6">
           {[
-            { k: '남은 기간', v: `D-${daysLeft()}` },
-            { k: '오늘 인증', v: `${todayCount}` },
-            { k: '학부모 참여', v: `${parentCount}` },
+            { k: '남은 기간', v: `D-${daysLeft()}`, bg: '#fff3c4' },
+            { k: '오늘 인증', v: `${todayCount}`, bg: '#d6f5e3' },
+            { k: '학부모 참여', v: `${parentCount}`, bg: '#ffe0ec' },
           ].map((s) => (
-            <div key={s.k} className="rounded-2xl p-3 text-center" style={{ background: 'rgba(255,255,255,.05)', border: '1px solid var(--mc-line)' }}>
-              <div className="text-2xl font-black" style={{ color: 'var(--mc-lime)' }}>{s.v}</div>
+            <div key={s.k} className="rounded-2xl p-3 text-center" style={{ background: s.bg, border: '2px solid var(--mc-line)' }}>
+              <div className="text-2xl font-black">{s.v}</div>
               <div className="text-xs font-bold mt-0.5" style={{ color: 'var(--mc-dim)' }}>{s.k}</div>
             </div>
           ))}

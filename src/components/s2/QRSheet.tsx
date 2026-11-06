@@ -19,10 +19,10 @@ export default function QRSheet({ open, onClose }: { open: boolean; onClose: () 
   return (
     <AnimatePresence>
       {open && (
-        <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+        <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/45"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
           <motion.div initial={{ scale: 0.92 }} animate={{ scale: 1 }} exit={{ scale: 0.92 }} onClick={(e) => e.stopPropagation()}
-            className="mc w-full max-w-sm rounded-3xl p-6 text-center" style={{ minHeight: 'auto', border: '1px solid var(--mc-line)' }}>
+            className="mc w-full max-w-sm rounded-3xl p-6 text-center" style={{ minHeight: 'auto', border: '3px solid var(--mc-line)', background: '#fff8e7' }}>
             <button onClick={onClose} className="float-right" aria-label="닫기"><X /></button>
             <h3 className="text-xl font-black mb-4 clear-both">배포용 QR</h3>
             <div className="bg-white p-4 rounded-2xl inline-block">
