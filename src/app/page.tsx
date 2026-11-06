@@ -4,9 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   motion,
-  useInView,
   useReducedMotion,
-  useScroll,
   useTransform,
   useMotionTemplate,
   useMotionValue,
@@ -14,7 +12,6 @@ import {
   animate,
   type MotionValue,
 } from 'framer-motion';
-import { ExternalLink } from 'lucide-react';
 import { SEASON, daysLeft } from '@/lib/season';
 import {
   Sprite, P, rocketRows, ROCKET_PAL, ROCKET_LEVELS, FLAME_A, FLAME_B, FLAME_PAL,
@@ -26,25 +23,9 @@ import {
 /* 유틸                                                                */
 /* ------------------------------------------------------------------ */
 
-function CountUp({ to, suffix = '' }: { to: number; suffix?: string }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true });
-  const reduce = useReducedMotion();
-  const mv = useMotionValue(0);
-  const text = useTransform(mv, (v) => `${Math.round(v)}${suffix}`);
-  useEffect(() => {
-    if (!inView) return;
-    if (reduce) { mv.set(to); return; }
-    const c = animate(mv, to, { duration: 1.6, ease: 'easeOut' });
-    return () => c.stop();
-  }, [inView, reduce, to, mv]);
-  return <motion.span ref={ref}>{text}</motion.span>;
-}
-
 const GROUND = '20vh'; // 지면 높이
 
-// 스크롤 진행도(--p, 0~1)를 CSS 변수로 두고 불투명도를 CSS 수식으로 계산한다.
-// 한 번에 크게 스크롤해도 항상 정확한 값이 나온다.
+// 재생 진행도(--p, 0~1)를 CSS 변수로 두고 불투명도를 CSS 수식으로 계산한다.
 const V = 'var(--p, 0)';
 /** [a,b]에서 서서히 나타나 [c,d]에서 사라짐 */
 const winCss = (a: number, b: number, c: number, d: number) =>
@@ -208,7 +189,7 @@ function HudBody({ p }: { p: MotionValue<number> }) {
   );
 }
 
-// 상태 갱신으로 다시 그려질 때 스크롤 연동 스타일이 낡은 값으로 덮이지 않도록,
+// 상태 갱신으로 다시 그려질 때 진행도 연동 스타일이 낡은 값으로 덮이지 않도록,
 // 상태는 모두 자식 컴포넌트(HudBody, Kids, RocketSprite)에 둔다.
 function Hud({ p }: { p: MotionValue<number> }) {
   return (
@@ -228,12 +209,25 @@ function Kids({ p }: { p: MotionValue<number> }) {
 /* 스토리                                                              */
 /* ------------------------------------------------------------------ */
 
+const DURATION = 26; // 초: 자동 재생 길이
+
 function Story() {
-  const ref = useRef<HTMLDivElement>(null);
+  const reduce = useReducedMotion();
   const stage = useRef<HTMLDivElement>(null);
-  const { scrollYProgress: p } = useScroll({ target: ref, offset: ['start start', 'end end'] });
+  const p = useMotionValue(0);
   useMotionValueEvent(p, 'change', (v) => stage.current?.style.setProperty('--p', String(v)));
-  useEffect(() => { stage.current?.style.setProperty('--p', String(p.get())); }, [p]);
+
+  // 열리자마자 자동 재생 (모션 줄이기 설정이면 마지막 화면으로 바로)
+  const play = React.useCallback(() => {
+    p.set(0);
+    return animate(p, 1, { duration: DURATION, ease: 'linear' });
+  }, [p]);
+  useEffect(() => {
+    stage.current?.style.setProperty('--p', String(p.get()));
+    if (reduce) { p.set(1); return; }
+    const controls = play();
+    return () => controls.stop();
+  }, [p, play, reduce]);
 
   const fuel = useTransform(p, [0.42, 0.62], [0, 1]);
   const rocketY = useTransform(p, [0.72, 0.93], ['0vh', '-125vh']);
@@ -242,8 +236,8 @@ function Story() {
 
   // 최종 장면(피날레) 클릭 활성화는 자식 컴포넌트의 상태로 처리
   return (
-    <div ref={ref} className="relative" style={{ height: '640vh' }}>
-      <div ref={stage} className="sticky top-0 h-screen overflow-hidden font-px text-white" style={{ ['--px' as string]: 'clamp(3px, 1.1vw, 6px)' }}>
+    <div>
+      <div ref={stage} className="relative h-[100dvh] overflow-hidden font-px text-white" style={{ ['--px' as string]: 'clamp(3px, 1.1vw, 6px)' }}>
         {/* 하늘 (10단 띠) */}
         <div className="absolute inset-0 flex flex-col" aria-hidden>
           {Array.from({ length: 10 }, (_, i) => <SkyBand key={i} p={p} i={i} />)}
@@ -258,7 +252,7 @@ function Story() {
           <Sprite rows={SUN} palette={SUN_PAL} scale={1.6} />
         </div>
 
-        <a href="#info" className="absolute top-3 right-3 z-30 px-box px-3 py-1.5 text-xs md:text-sm">SKIP ▶</a>
+        <Link href="/board" className="absolute top-3 right-3 z-30 px-box px-3 py-1.5 text-xs md:text-sm">SKIP ▶</Link>
         <Hud p={p} />
 
         <Dialog range={[0, 0.03, 0.13, 0.18]} title="내성초 친구들이 클릭온 AI를 시작했어요" sub="하나, 둘… 클릭! 새로운 AI 세상으로" />
@@ -340,10 +334,6 @@ function Story() {
           </div>
         </motion.div>
 
-        <div style={{ opacity: downCss(0, 0.04) }} className="absolute bottom-3 inset-x-0 text-center z-20 text-xs md:text-sm">
-          <span className="px-slow-a inline-block">▼ 스크롤해서 로켓을 발사해요</span>
-        </div>
-
         {/* 피날레 */}
         <Finale p={p}>
           <div className="px-box p-6 md:p-10 text-center max-w-xl">
@@ -352,9 +342,16 @@ function Story() {
               내성초 AI 마스터<br />챌린지 <span style={{ color: P.yellow }}>2기</span>
             </h1>
             <p className="mt-3 text-sm md:text-lg">다 같이 로켓을 쏘아 올려요!</p>
-            <Link href="/board" className="mt-6 inline-block px-6 py-3 font-black text-lg md:text-2xl" style={{ background: P.yellow, color: P.ink, border: `4px solid ${P.ink}`, boxShadow: '4px 4px 0 #000' }}>
-              <span className="px-slow-a inline-block">▶</span> PRESS START
-            </Link>
+            <ul className="mt-4 text-left text-xs md:text-sm space-y-1 inline-block" style={{ color: P.lgrey }}>
+              <li><span style={{ color: P.cyan }}>▸</span> 10/15 ~ 11/25 · 프로그램 {SEASON.programs}개 · 기관 {SEASON.institutions}곳</li>
+              <li><span style={{ color: P.cyan }}>▸</span> 신규 프로그램 {SEASON.newPrograms}개 + <span style={{ color: P.yellow }}>인증서 랭킹 이벤트</span></li>
+            </ul>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <Link href="/board" className="inline-block px-6 py-3 font-black text-lg md:text-2xl" style={{ background: P.yellow, color: P.ink, border: `4px solid ${P.ink}`, boxShadow: '4px 4px 0 #000' }}>
+                <span className="px-slow-a inline-block">▶</span> PRESS START
+              </Link>
+              <button onClick={play} className="px-box px-3 py-2 text-xs md:text-sm" aria-label="다시 보기">↻ REPLAY</button>
+            </div>
           </div>
         </Finale>
       </div>
@@ -372,96 +369,10 @@ function Finale({ p, children }: { p: MotionValue<number>; children: React.React
   );
 }
 
-function StaticHero() {
-  return (
-    <section className="min-h-screen flex flex-col items-center justify-center text-center px-6 font-px" style={{ background: SKY[0][4], ['--px' as string]: '6px' }}>
-      <Sprite rows={rocketRows(ROCKET_LEVELS)} palette={ROCKET_PAL} />
-      <h1 className="mt-6 text-3xl md:text-5xl font-black">내성초 AI 마스터 챌린지 2기</h1>
-      <p className="mt-3">클릭온 AI로 쌓은 배움이 우리의 미래를 쏘아 올려요</p>
-      <Link href="/board" className="mt-8 inline-block px-6 py-3 font-black text-xl" style={{ background: P.yellow, color: P.ink, border: `4px solid ${P.ink}`, boxShadow: '4px 4px 0 #000' }}>
-        ▶ PRESS START
-      </Link>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* 하단 안내 (픽셀 UI)                                                  */
-/* ------------------------------------------------------------------ */
-
-const CHANGES = [
-  { badge: 'NEW', title: '신규 프로그램 10개', body: '시즌1 참가자 의견을 반영해 난이도를 다양화했어요.' },
-  { badge: 'UP', title: '44개 프로그램 · 15개 기관', body: 'EBS를 포함한 15개 기관이 참여해요.' },
-  { badge: 'NEW', title: '인증서 랭킹 이벤트', body: '이수 인증서 수량으로 순위를 겨뤄요. 우리 학교 랭킹보드와 딱 맞아요!' },
-  { badge: 'UP', title: '체험·데이터 분야 강화', body: 'AI 활용 체험과 AI 데이터 활용 부문이 더 풍성해졌어요.' },
-];
-
-function Info() {
-  return (
-    <div id="info" className="font-px text-white" style={{ background: SKY[0][0] }}>
-      <section className="px-6 py-24">
-        <h2 className="text-2xl md:text-4xl font-black text-center mb-12">STATUS · 클릭온 AI {SEASON.name}</h2>
-        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { n: SEASON.programs, s: '개', l: '프로그램' },
-            { n: SEASON.institutions, s: '개', l: '참여 기관' },
-            { n: SEASON.newPrograms, s: '개', l: '신규 프로그램' },
-            { n: 42, s: '일', l: '10/15 ~ 11/25' },
-          ].map((it) => (
-            <motion.div key={it.l} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-60px' }} className="px-box p-5 text-center">
-              <div className="text-4xl md:text-5xl font-black" style={{ color: P.yellow }}><CountUp to={it.n} suffix={it.s} /></div>
-              <div className="mt-2 text-sm">{it.l}</div>
-            </motion.div>
-          ))}
-        </div>
-        <div className="max-w-5xl mx-auto mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {SEASON.areas.map((a) => (
-            <div key={a.name} className="p-5" style={{ background: P.white, color: P.ink, border: `4px solid ${P.ink}`, boxShadow: '4px 4px 0 #000' }}>
-              <div className="text-3xl">{a.icon}</div>
-              <div className="mt-2 text-lg font-black">{a.name}</div>
-              <div className="font-bold" style={{ color: '#3b5dc9' }}>{a.count}개 프로그램</div>
-              {a.note && <span className="inline-block mt-2 px-2 py-0.5 text-xs font-black" style={{ background: P.red, color: '#fff' }}>{a.note}</span>}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="px-6 pb-24">
-        <h2 className="text-2xl md:text-4xl font-black text-center mb-12">PATCH NOTES · 1기와 달라진 점</h2>
-        <ul className="max-w-3xl mx-auto space-y-4">
-          {CHANGES.map((c) => (
-            <motion.li key={c.title} initial={{ opacity: 0, x: -24 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: '-40px' }} className="px-box p-4 flex gap-4 items-start">
-              <span className="shrink-0 px-2 py-1 text-xs font-black" style={{ background: c.badge === 'NEW' ? P.red : P.cyan, color: '#fff' }}>{c.badge}</span>
-              <div>
-                <div className="font-black">{c.title}</div>
-                <div className="text-sm mt-1" style={{ color: P.lgrey }}>{c.body}</div>
-              </div>
-            </motion.li>
-          ))}
-        </ul>
-        <p className="max-w-3xl mx-auto mt-4 text-xs" style={{ color: P.grey }}>출처: 클릭온 AI 공식 누리집, 과기정통부 보도자료. 세부 내용은 공식 안내서를 확인하세요.</p>
-      </section>
-
-      <section className="px-6 pb-24 text-center">
-        <Link href="/board" className="inline-block px-8 py-4 font-black text-xl md:text-2xl" style={{ background: P.yellow, color: P.ink, border: `4px solid ${P.ink}`, boxShadow: '5px 5px 0 #000' }}>
-          ▶ 지금 참여하러 가기
-        </Link>
-        <div className="mt-6">
-          <a href={SEASON.officialUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm underline" style={{ color: P.lgrey }}>
-            공식 클릭온 AI 바로가기 <ExternalLink className="w-4 h-4" />
-          </a>
-        </div>
-      </section>
-    </div>
-  );
-}
-
 export default function Intro() {
-  const reduce = useReducedMotion();
   return (
-    <main className="overflow-x-clip" style={{ background: SKY[0][0] }}>
-      {reduce ? <StaticHero /> : <Story />}
-      <Info />
+    <main className="h-[100dvh] overflow-hidden" style={{ background: SKY[0][0] }}>
+      <Story />
     </main>
   );
 }
