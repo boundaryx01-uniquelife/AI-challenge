@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X, Camera, Loader2, ArrowLeft } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { resizeAndCompressImage } from '@/lib/image';
+import { pdfFirstPageToJpeg } from '@/lib/pdf';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 const MAX_FILE_MB = 20;
@@ -18,6 +19,7 @@ export default function UploadSheet({ open, onClose, onDone }: { open: boolean; 
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
@@ -51,7 +53,18 @@ export default function UploadSheet({ open, onClose, onDone }: { open: boolean; 
     try {
       const name_ = name.trim();
       let send: File | Blob = file;
-      if (file.type.startsWith('image/')) {
+      if (file.type === 'application/pdf') {
+        // PDF는 첫 페이지를 이미지로 바꿔 용량을 줄인다 (사진과 똑같이 저장·표시됨)
+        setNote('PDF를 사진으로 바꾸는 중이에요…');
+        try {
+          const jpg = await pdfFirstPageToJpeg(file);
+          send = new File([jpg], `pdf-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        } catch (e) {
+          console.error('pdf convert error', e);
+          throw new Error('PDF를 읽지 못했어요. 사진으로 찍어서 올려 주세요.');
+        }
+        setNote(null);
+      } else if (file.type.startsWith('image/')) {
         const blob = await resizeAndCompressImage(file);
         send = new File([blob], `compressed-${Date.now()}.jpg`, { type: 'image/jpeg' });
       }
@@ -95,6 +108,7 @@ export default function UploadSheet({ open, onClose, onDone }: { open: boolean; 
     } catch (e) {
       setErr(e instanceof Error ? e.message : '문제가 생겼어요.');
     } finally {
+      setNote(null);
       setBusy(false);
     }
   };
@@ -162,7 +176,7 @@ export default function UploadSheet({ open, onClose, onDone }: { open: boolean; 
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={preview} alt="미리보기" className="w-full h-full object-contain" />
                   ) : file ? (
-                    <span className="font-bold">📄 {file.name}</span>
+                    <span className="font-bold">📄 {file.name}<br /><span className="text-xs font-normal">(올릴 때 첫 페이지가 사진으로 바뀌어요)</span></span>
                   ) : (
                     <>
                       <Camera className="w-10 h-10" style={{ color: 'var(--k-blue)' }} />
@@ -173,6 +187,7 @@ export default function UploadSheet({ open, onClose, onDone }: { open: boolean; 
               </div>
             )}
 
+            {note && <p className="mt-4 text-sm font-bold" style={{ color: 'var(--k-blue)' }}>{note}</p>}
             {err && <p className="mt-4 text-sm font-bold" style={{ color: '#d6336c' }}>{err}</p>}
 
             <button className="mc-btn w-full mt-6 text-lg" disabled={busy} onClick={step < 2 ? next : submit}>
