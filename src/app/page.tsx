@@ -209,7 +209,7 @@ function Kids({ p }: { p: MotionValue<number> }) {
 /* 스토리                                                              */
 /* ------------------------------------------------------------------ */
 
-const DURATION = 26; // 초: 자동 재생 길이
+const DURATION = 13; // 초: 자동 재생 길이
 
 function Story() {
   const reduce = useReducedMotion();
