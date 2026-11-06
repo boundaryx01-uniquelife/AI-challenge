@@ -20,3 +20,10 @@ export function daysLeft(now = new Date()): number {
   const ms = new Date(SEASON.end).getTime() - now.getTime();
   return Math.max(0, Math.ceil(ms / 86400000));
 }
+
+/** 2기 시작 시각(ISO). 이 시각 이전에 올라온 1기 자료는 게시판·랭킹에서 제외한다.
+ *  서버에서 환경 변수 SEASON_START 로 바꿀 수 있다(예: 모든 자료를 보려면 2000-01-01). */
+export function seasonStartISO(): string {
+  const v = (process.env.SEASON_START || '').trim();
+  return v && !Number.isNaN(new Date(v).getTime()) ? new Date(v).toISOString() : new Date(SEASON.start).toISOString();
+}

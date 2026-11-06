@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { seasonStartISO } from '@/lib/season';
 import { writeFile, mkdir, unlink } from 'fs/promises';
 import path from 'path';
 
@@ -65,10 +66,10 @@ export async function GET(request: Request) {
 
     if (isSupabaseConfigured && supabase) {
       // Fetch from Supabase Cloud PostgreSQL
-      const { data, error } = await supabase
-        .from('certificates')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // 일반 사용자에게는 2기(시즌 시작 이후) 자료만 보여 준다. 관리자는 전체(1기 포함)를 본다.
+      let query = supabase.from('certificates').select('*').order('created_at', { ascending: false });
+      if (!isAdmin) query = query.gte('created_at', seasonStartISO());
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -86,6 +87,7 @@ export async function GET(request: Request) {
     } else {
       // Local SQLite Mode fallback
       const certificates = await prisma.certificate.findMany({
+        where: isAdmin ? undefined : { createdAt: { gte: new Date(seasonStartISO()) } },
         orderBy: {
           createdAt: 'desc',
         },
