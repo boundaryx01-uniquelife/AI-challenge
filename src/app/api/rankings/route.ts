@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { seasonStartISO } from '@/lib/season';
 
 // Helper function to mask student name for privacy
 function maskName(name: string): string {
@@ -19,7 +20,8 @@ export async function GET() {
       // Cloud Supabase Mode: Fetch all certificates and aggregate in memory
       const { data, error } = await supabase
         .from('certificates')
-        .select('grade, class_num, student_name');
+        .select('grade, class_num, student_name')
+        .gte('created_at', seasonStartISO()); // 2기 자료만 집계
 
       if (error) throw error;
 
@@ -81,8 +83,10 @@ export async function GET() {
       });
     } else {
       // Local SQLite Mode Fallback
+      const seasonWhere = { createdAt: { gte: new Date(seasonStartISO()) } };
       const rawGradeData = await prisma.certificate.groupBy({
         by: ['grade'],
+        where: seasonWhere,
         _count: {
           id: true,
         },
@@ -98,6 +102,7 @@ export async function GET() {
 
       const rawStudentData = await prisma.certificate.groupBy({
         by: ['grade', 'classNum', 'studentName'],
+        where: seasonWhere,
         _count: {
           id: true,
         },

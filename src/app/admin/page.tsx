@@ -14,6 +14,7 @@ interface Certificate {
   studentName: string;
   imageUrl: string;
   createdAt: string;
+  isPreviousSeason?: boolean; // 인정 시작일 이전(1기) 자료
 }
 
 export default function AdminPage() {
@@ -29,6 +30,7 @@ export default function AdminPage() {
   const [filterGrade, setFilterGrade] = useState<number | 'all'>('all');
   const [filterRole, setFilterRole] = useState<'all' | 'student' | 'parent'>('all');
   const [searchName, setSearchName] = useState('');
+  const [showOld, setShowOld] = useState(false);
 
   // Check sessionStorage on mount
   useEffect(() => {
@@ -161,7 +163,10 @@ export default function AdminPage() {
   };
 
   // Filter Logic
-  const filteredCertificates = certificates.filter((cert) => {
+  // 기본은 2기 자료만. 1기 자료는 체크했을 때만 보이며 집계에는 포함하지 않는다.
+  const oldCount = certificates.filter((c) => c.isPreviousSeason).length;
+  const activeCerts = showOld ? certificates : certificates.filter((c) => !c.isPreviousSeason);
+  const filteredCertificates = activeCerts.filter((cert) => {
     const matchesGrade = filterGrade === 'all' || cert.grade === filterGrade;
     const matchesRole =
       filterRole === 'all' ||
@@ -187,9 +192,10 @@ export default function AdminPage() {
   };
 
   // Statistics
-  const totalCount = certificates.length;
-  const studentCount = certificates.filter(c => c.classNum === 1).length;
-  const parentCount = certificates.filter(c => c.classNum === 2).length;
+  const countedCerts = certificates.filter((c) => !c.isPreviousSeason);
+  const totalCount = countedCerts.length;
+  const studentCount = countedCerts.filter(c => c.classNum === 1).length;
+  const parentCount = countedCerts.filter(c => c.classNum === 2).length;
 
   if (!isAuthenticated) {
     return (
@@ -410,6 +416,12 @@ export default function AdminPage() {
               className="w-full px-3 py-1.5 text-xs font-bold border-2 border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-300 focus:border-slate-800"
             />
           </div>
+
+          {/* 1기(이전) 자료: 기본 숨김 */}
+          <label className="flex items-center gap-2 text-xs font-black text-slate-600 cursor-pointer">
+            <input type="checkbox" checked={showOld} onChange={(e) => setShowOld(e.target.checked)} />
+            1기(이전) 자료 보기 · {oldCount}건 (집계 제외, 삭제용)
+          </label>
         </div>
       </div>
 
