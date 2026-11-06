@@ -5,6 +5,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X, Camera, Loader2, ArrowLeft } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { resizeAndCompressImage } from '@/lib/image';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+
+const MAX_FILE_MB = 20;
 
 export default function UploadSheet({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
   const [step, setStep] = useState(0);
@@ -26,6 +29,10 @@ export default function UploadSheet({ open, onClose, onDone }: { open: boolean; 
       setErr('이미지(png, jpg) 또는 PDF만 올릴 수 있어요.');
       return;
     }
+    if (f.size > MAX_FILE_MB * 1024 * 1024) {
+      setErr(`파일이 너무 커요. ${MAX_FILE_MB}MB 이하로 올려 주세요.`);
+      return;
+    }
     setFile(f);
     setPreview(f.type.startsWith('image/') ? URL.createObjectURL(f) : null);
     setErr(null);
@@ -42,20 +49,44 @@ export default function UploadSheet({ open, onClose, onDone }: { open: boolean; 
     setBusy(true);
     setErr(null);
     try {
+      const name_ = name.trim();
       let send: File | Blob = file;
       if (file.type.startsWith('image/')) {
         const blob = await resizeAndCompressImage(file);
         send = new File([blob], `compressed-${Date.now()}.jpg`, { type: 'image/jpeg' });
       }
-      const fd = new FormData();
-      fd.append('grade', String(grade));
-      fd.append('classNum', String(role));
-      fd.append('studentName', name.trim());
-      fd.append('image', send);
-      const res = await fetch('/api/certificates', { method: 'POST', body: fd });
+      let res: Response;
+      if (isSupabaseConfigured && supabase) {
+        // 파일은 브라우저에서 Supabase로 직접 업로드 (서버 함수의 요청 크기 제한을 피함)
+        const isPdf = send.type === 'application/pdf';
+        const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}${isPdf ? '.pdf' : '.jpg'}`;
+        const { error: upErr } = await supabase.storage
+          .from('certificates')
+          .upload(fileName, send, { contentType: isPdf ? 'application/pdf' : 'image/jpeg', upsert: false });
+        if (upErr) {
+          console.error('upload error', upErr);
+          throw new Error('파일을 올리지 못했어요. 잠시 뒤 다시 시도해 주세요.');
+        }
+        const { data: pub } = supabase.storage.from('certificates').getPublicUrl(fileName);
+        res = await fetch('/api/certificates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ grade, classNum: role, studentName: name_ , imageUrl: pub.publicUrl }),
+        });
+      } else {
+        // 개발 환경(로컬 저장) 전용 경로
+        const fd = new FormData();
+        fd.append('grade', String(grade));
+        fd.append('classNum', String(role));
+        fd.append('studentName', name_);
+        fd.append('image', send);
+        res = await fetch('/api/certificates', { method: 'POST', body: fd });
+      }
       const text = await res.text();
       let json;
-      try { json = JSON.parse(text); } catch { throw new Error(`서버 오류 (${res.status})`); }
+      try { json = JSON.parse(text); } catch {
+        throw new Error(res.status === 413 ? '파일이 너무 커요. 더 작은 파일로 올려 주세요.' : `서버 오류 (${res.status})`);
+      }
       if (!res.ok || !json.success) throw new Error(json.error || '등록에 실패했어요.');
       confetti({ particleCount: 140, spread: 80, origin: { y: 0.7 }, colors: ['#ffd23f', '#ff5d8f', '#1b6fe0', '#2fb36b', '#7a5cff'] });
       setStep(0); setRole(1); setGrade(1); setName(''); setFile(null); setPreview(null);

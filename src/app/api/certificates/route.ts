@@ -15,6 +15,39 @@ function maskName(name: string): string {
   return `${trimmed[0]}${'*'.repeat(trimmed.length - 2)}${trimmed[trimmed.length - 1]}`;
 }
 
+// Supabase DB에 인증서 레코드 생성 (파일은 이미 스토리지에 올라가 있음)
+async function insertSupabaseCertificate(grade: number, role: number, studentName: string, imageUrl: string) {
+  if (!supabase) throw new Error('Supabase가 설정되지 않았습니다.');
+  const { data: dbData, error: dbError } = await supabase
+    .from('certificates')
+    .insert([{ grade, class_num: role, student_name: studentName.trim(), image_url: imageUrl }])
+    .select();
+
+  if (dbError || !dbData || !dbData[0]) {
+    console.error('Supabase DB error:', dbError);
+    throw new Error('클라우드 데이터베이스 기록 생성에 실패했습니다.');
+  }
+
+  const created = dbData[0];
+  return NextResponse.json(
+    {
+      success: true,
+      data: {
+        id: created.id,
+        grade: created.grade,
+        classNum: created.class_num,
+        studentName: maskName(created.student_name),
+        imageUrl: created.image_url,
+        createdAt: created.created_at,
+      },
+    },
+    { status: 201 }
+  );
+}
+
+const NOT_CONFIGURED_MESSAGE =
+  '서버 저장소(Supabase) 설정이 아직 연결되지 않았어요. 관리자에게 알려 주세요.';
+
 // GET /api/certificates - Fetch all certificates (Hybrid Mode)
 export async function GET(request: Request) {
   try {
@@ -77,6 +110,29 @@ export async function GET(request: Request) {
 // POST /api/certificates - Upload a certificate (Hybrid Mode)
 export async function POST(request: Request) {
   try {
+    // --- JSON 모드: 파일은 브라우저가 Supabase 스토리지에 직접 올렸고, 여기서는 기록만 만든다 ---
+    // (서버리스 함수의 요청 크기 제한(약 6MB)을 피하기 위함)
+    if ((request.headers.get('content-type') || '').includes('application/json')) {
+      if (!isSupabaseConfigured || !supabase) {
+        return NextResponse.json({ success: false, error: NOT_CONFIGURED_MESSAGE }, { status: 503 });
+      }
+      const body = await request.json();
+      const grade = Number(body.grade);
+      const role = Number(body.classNum);
+      const name = typeof body.studentName === 'string' ? body.studentName.trim() : '';
+      const imageUrl = typeof body.imageUrl === 'string' ? body.imageUrl : '';
+
+      if (!Number.isInteger(grade) || grade < 1 || grade > 6 || (role !== 1 && role !== 2) || name.length < 2 || name.length > 20) {
+        return NextResponse.json({ success: false, error: '입력 정보가 올바르지 않습니다.' }, { status: 400 });
+      }
+      // 우리 Supabase 'certificates' 버킷의 공개 주소만 허용 (임의 URL 저장 방지)
+      const allowedPrefix = `${(process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')}/storage/v1/object/public/certificates/`;
+      if (!imageUrl.startsWith(allowedPrefix)) {
+        return NextResponse.json({ success: false, error: '올바르지 않은 파일 주소입니다.' }, { status: 400 });
+      }
+      return await insertSupabaseCertificate(grade, role, name, imageUrl);
+    }
+
     const formData = await request.formData();
     
     const gradeStr = formData.get('grade') as string;
@@ -129,40 +185,12 @@ export async function POST(request: Request) {
 
       const imageUrl = urlData.publicUrl;
 
-      // Insert record in Supabase DB ('certificates')
-      const { data: dbData, error: dbError } = await supabase
-        .from('certificates')
-        .insert([
-          {
-            grade,
-            class_num: role,
-            student_name: studentName.trim(),
-            image_url: imageUrl,
-          },
-        ])
-        .select();
-
-      if (dbError) {
-        console.error('Supabase DB error:', dbError);
-        throw new Error('클라우드 데이터베이스 기록 생성에 실패했습니다.');
-      }
-
-      const created = dbData[0];
-      return NextResponse.json(
-        {
-          success: true,
-          data: {
-            id: created.id,
-            grade: created.grade,
-            classNum: created.class_num,
-            studentName: maskName(created.student_name),
-            imageUrl: created.image_url,
-            createdAt: created.created_at,
-          },
-        },
-        { status: 201 }
-      );
+      return await insertSupabaseCertificate(grade, role, studentName, imageUrl);
     } else {
+      // 운영(서버리스)에는 쓰기 가능한 디스크가 없으므로 로컬 저장은 개발 환경에서만 허용
+      if (process.env.NODE_ENV === 'production') {
+        return NextResponse.json({ success: false, error: NOT_CONFIGURED_MESSAGE }, { status: 503 });
+      }
       // Local SQLite Mode Fallback
       const uploadDir = path.join(process.cwd(), 'public', 'uploads');
       try {
