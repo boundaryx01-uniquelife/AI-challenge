@@ -57,7 +57,7 @@ export default function UploadSheet({ open, onClose, onDone }: { open: boolean; 
       let json;
       try { json = JSON.parse(text); } catch { throw new Error(`서버 오류 (${res.status})`); }
       if (!res.ok || !json.success) throw new Error(json.error || '등록에 실패했어요.');
-      confetti({ particleCount: 140, spread: 80, origin: { y: 0.7 }, colors: ['#5ef2ff', '#c6ff4d', '#8b7bff', '#ff6ec7'] });
+      confetti({ particleCount: 140, spread: 80, origin: { y: 0.7 }, colors: ['#ffd23f', '#ff5d8f', '#1b6fe0', '#2fb36b', '#7a5cff'] });
       setStep(0); setRole(1); setGrade(1); setName(''); setFile(null); setPreview(null);
       onDone();
       onClose();
@@ -73,12 +73,12 @@ export default function UploadSheet({ open, onClose, onDone }: { open: boolean; 
   return (
     <AnimatePresence>
       {open && (
-        <motion.div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/70 backdrop-blur-sm"
+        <motion.div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-slate-900/45"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !busy && onClose()}>
           <motion.div
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 30, stiffness: 320 }}
             className="mc w-full md:max-w-md rounded-t-3xl md:rounded-3xl p-6 pb-8 max-h-[92vh] overflow-y-auto"
-            style={{ minHeight: 'auto', border: '1px solid var(--mc-line)' }}
+            style={{ minHeight: 'auto', border: '3px solid var(--mc-line)', background: '#fff8e7' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
@@ -87,7 +87,7 @@ export default function UploadSheet({ open, onClose, onDone }: { open: boolean; 
               ) : <span className="w-6" />}
               <div className="flex gap-1.5">
                 {[0, 1, 2].map((i) => (
-                  <span key={i} className="h-1.5 w-8 rounded-full" style={{ background: i <= step ? 'var(--mc-lime)' : 'var(--mc-line)' }} />
+                  <span key={i} className="h-1.5 w-8 rounded-full" style={{ background: i <= step ? 'var(--k-pink)' : '#d5dbe8' }} />
                 ))}
               </div>
               <button onClick={onClose} disabled={busy} aria-label="닫기"><X /></button>
@@ -100,7 +100,7 @@ export default function UploadSheet({ open, onClose, onDone }: { open: boolean; 
                 <div className="grid grid-cols-2 gap-3">
                   {([[1, '🧑‍🎓 학생'], [2, '👨‍👩‍👧 학부모']] as const).map(([v, l]) => (
                     <button key={v} onClick={() => setRole(v)} className="mc-glass py-4 font-black text-lg"
-                      style={role === v ? { borderColor: 'var(--mc-lime)', color: 'var(--mc-lime)' } : undefined}>{l}</button>
+                      style={role === v ? { background: 'var(--k-primary)' } : undefined}>{l}</button>
                   ))}
                 </div>
                 <div>
@@ -108,7 +108,7 @@ export default function UploadSheet({ open, onClose, onDone }: { open: boolean; 
                   <div className="grid grid-cols-6 gap-2">
                     {[1, 2, 3, 4, 5, 6].map((g) => (
                       <button key={g} onClick={() => setGrade(g)} className="mc-glass py-3 font-black text-lg"
-                        style={grade === g ? { borderColor: 'var(--mc-lime)', color: 'var(--mc-lime)' } : undefined}>{g}</button>
+                        style={grade === g ? { background: 'var(--k-primary)' } : undefined}>{g}</button>
                     ))}
                   </div>
                 </div>
@@ -119,14 +119,14 @@ export default function UploadSheet({ open, onClose, onDone }: { open: boolean; 
               <input autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={10}
                 placeholder={role === 2 ? '학부모 성함' : '내 이름'}
                 className="w-full rounded-2xl px-5 py-4 text-xl font-bold outline-none"
-                style={{ background: 'var(--mc-surface)', border: '1px solid var(--mc-line)', color: 'var(--mc-text)' }} />
+                style={{ background: '#fff', border: '3px solid var(--mc-line)', color: 'var(--mc-text)' }} />
             )}
 
             {step === 2 && (
               <div>
                 <input ref={input} type="file" accept="image/*,application/pdf" className="hidden" onChange={pick} />
                 <button onClick={() => input.current?.click()} className="w-full aspect-[4/3] rounded-2xl flex flex-col items-center justify-center gap-2 overflow-hidden"
-                  style={{ border: '2px dashed var(--mc-line)', background: 'var(--mc-surface)' }}>
+                  style={{ border: '3px dashed var(--mc-line)', background: '#fff' }}>
                   {preview ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={preview} alt="미리보기" className="w-full h-full object-contain" />
@@ -134,7 +134,7 @@ export default function UploadSheet({ open, onClose, onDone }: { open: boolean; 
                     <span className="font-bold">📄 {file.name}</span>
                   ) : (
                     <>
-                      <Camera className="w-10 h-10" style={{ color: 'var(--mc-cyan)' }} />
+                      <Camera className="w-10 h-10" style={{ color: 'var(--k-blue)' }} />
                       <span className="font-bold">사진 찍기 / 파일 선택</span>
                     </>
                   )}
@@ -142,7 +142,7 @@ export default function UploadSheet({ open, onClose, onDone }: { open: boolean; 
               </div>
             )}
 
-            {err && <p className="mt-4 text-sm font-bold" style={{ color: 'var(--mc-pink)' }}>{err}</p>}
+            {err && <p className="mt-4 text-sm font-bold" style={{ color: '#d6336c' }}>{err}</p>}
 
             <button className="mc-btn w-full mt-6 text-lg" disabled={busy} onClick={step < 2 ? next : submit}>
               {busy ? <><Loader2 className="animate-spin" /> 올리는 중…</> : step < 2 ? '다음' : '🚀 올리기'}

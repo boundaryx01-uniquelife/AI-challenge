@@ -27,7 +27,7 @@ export default function Gallery({ certificates, limit }: { certificates: Certifi
           {[1, 2, 3, 4, 5, 6].map((g) => (
             <button key={g} className="mc-chip" data-on={grade === g} onClick={() => setGrade(g)}>{g}학년</button>
           ))}
-          <span className="w-px bg-white/10 mx-1" />
+          <span className="w-0.5 bg-slate-300 mx-1 self-stretch" />
           <button className="mc-chip" data-on={role === 'all'} onClick={() => setRole('all')}>모두</button>
           <button className="mc-chip" data-on={role === 1} onClick={() => setRole(1)}>학생</button>
           <button className="mc-chip" data-on={role === 2} onClick={() => setRole(2)}>학부모</button>
@@ -47,7 +47,7 @@ export default function Gallery({ certificates, limit }: { certificates: Certifi
               transition={{ delay: Math.min(i, 12) * 0.03 }}
               onClick={() => setSel(c)}
               className="relative aspect-[4/5] rounded-2xl overflow-hidden text-left group"
-              style={{ border: c.classNum === 2 ? '1px solid var(--mc-pink)' : '1px solid var(--mc-line)', background: 'rgba(255,255,255,.05)' }}
+              style={{ border: c.classNum === 2 ? '3px solid var(--k-pink)' : '3px solid var(--mc-line)', background: '#fff', boxShadow: '3px 3px 0 0 var(--mc-line)' }}
             >
               {isPdf(c.imageUrl) ? (
                 <div className="absolute inset-0 flex items-center justify-center"><FileText className="w-12 h-12 opacity-60" /></div>
@@ -56,13 +56,13 @@ export default function Gallery({ certificates, limit }: { certificates: Certifi
                 <img src={c.imageUrl} alt={`${c.studentName} 인증서`} loading="lazy" className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
               )}
               <div className="absolute inset-x-0 bottom-0 p-3 pt-10" style={{ background: 'linear-gradient(transparent,rgba(6,10,24,.92))' }}>
-                <div className="font-black truncate">{c.studentName}</div>
-                <div className="text-xs font-bold" style={{ color: 'var(--mc-dim)' }}>
+                <div className="font-black truncate text-white">{c.studentName}</div>
+                <div className="text-xs font-bold text-slate-200">
                   {c.grade}학년 · {fmt(c.createdAt)}
                 </div>
               </div>
               {c.classNum === 2 && (
-                <span className="absolute top-2 left-2 text-[11px] font-black px-2 py-0.5 rounded-full" style={{ background: 'var(--mc-pink)', color: '#2a0020' }}>학부모</span>
+                <span className="absolute top-2 left-2 text-[11px] font-black px-2 py-0.5 rounded-full" style={{ background: 'var(--k-pink)', color: '#fff' }}>학부모</span>
               )}
             </motion.button>
           ))}
@@ -72,11 +72,11 @@ export default function Gallery({ certificates, limit }: { certificates: Certifi
       <AnimatePresence>
         {sel && (
           <motion.div
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur"
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setSel(null)}
           >
-            <button aria-label="닫기" className="absolute top-4 right-4 p-3 rounded-full mc-glass"><X /></button>
+            <button aria-label="닫기" className="absolute top-4 right-4 p-3 rounded-full mc-glass text-slate-900"><X /></button>
             <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
               {isPdf(sel.imageUrl) ? (
                 <iframe src={sel.imageUrl} className="w-full h-[75vh] rounded-2xl bg-white" title="PDF 인증서" />
@@ -84,7 +84,7 @@ export default function Gallery({ certificates, limit }: { certificates: Certifi
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={sel.imageUrl} alt="인증서" className="w-full max-h-[80vh] object-contain rounded-2xl" />
               )}
-              <p className="text-center mt-3 font-black">{sel.studentName} · {sel.grade}학년 {sel.classNum === 2 ? '학부모' : '학생'}</p>
+              <p className="text-center mt-3 font-black text-white">{sel.studentName} · {sel.grade}학년 {sel.classNum === 2 ? '학부모' : '학생'}</p>
             </motion.div>
           </motion.div>
         )}

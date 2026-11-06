@@ -218,14 +218,14 @@ function Story() {
   const p = useMotionValue(0);
   useMotionValueEvent(p, 'change', (v) => stage.current?.style.setProperty('--p', String(v)));
 
-  // phase: 0 = 영상, 1 = 정보 슬라이드, 2 = 마지막 장면 (상태 공유용 MotionValue)
+  // phase: 0 = 영상 재생 중, 2 = 마지막 장면 (상태 공유용 MotionValue)
   const phase = useMotionValue(0);
   const controls = useRef<ReturnType<typeof animate> | null>(null);
   const play = React.useCallback(() => {
     controls.current?.stop();
     phase.set(0);
     p.set(0);
-    controls.current = animate(p, 1, { duration: DURATION, ease: 'linear', onComplete: () => phase.set(1) });
+    controls.current = animate(p, 1, { duration: DURATION, ease: 'linear', onComplete: () => phase.set(2) });
   }, [p, phase]);
   const skip = React.useCallback(() => {
     controls.current?.stop();
@@ -367,7 +367,7 @@ const CHANGES = [
   { badge: 'NEW', title: '인증서 랭킹 이벤트', body: '이수 인증서 수량으로 순위를 겨뤄요. 우리 학교 랭킹보드와 딱 맞아요!' },
   { badge: 'UP', title: '체험·데이터 분야 강화', body: 'AI 활용 체험과 AI 데이터 활용 부문이 더 풍성해졌어요.' },
 ];
-const SLIDE_MS = [2800, 2100, 2100, 2100, 2100];
+const SLIDES = 1 + CHANGES.length; // 0: 숫자·분야, 1~4: 달라진 점
 
 function StatsView() {
   return (
@@ -394,31 +394,53 @@ function StatsView() {
   );
 }
 
-function ChangeRow({ c }: { c: (typeof CHANGES)[number] }) {
+function ChangeRow({ c, big = false }: { c: (typeof CHANGES)[number]; big?: boolean }) {
   return (
-    <div className="flex gap-3 items-start text-left">
+    <div className={`flex gap-3 items-start text-left ${big ? 'md:gap-5 md:p-4' : ''}`}>
       <span className="shrink-0 px-2 py-1 text-xs font-black" style={{ background: c.badge === 'NEW' ? P.red : P.cyan, color: '#fff' }}>{c.badge}</span>
       <div>
-        <div className="font-black text-sm md:text-lg">{c.title}</div>
-        <div className="text-xs md:text-sm mt-0.5" style={{ color: P.lgrey }}>{c.body}</div>
+        <div className={`font-black ${big ? 'text-lg md:text-3xl' : 'text-sm md:text-lg'}`}>{c.title}</div>
+        <div className={`mt-1 ${big ? 'text-sm md:text-lg' : 'text-xs md:text-sm'}`} style={{ color: P.lgrey }}>{c.body}</div>
       </div>
     </div>
   );
 }
 
-/** 한 화면에 모두 보여 주는 정보 패널 (스크롤 없음) */
-function InfoPanel({ onClose }: { onClose: () => void }) {
+/** 버튼으로 넘기는 정보 슬라이드 (자동 재생 없음, 스크롤 없음) */
+function InfoSlides({ onClose }: { onClose: () => void }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') setI((v) => Math.max(0, v - 1));
+      if (e.key === 'ArrowRight') setI((v) => Math.min(SLIDES - 1, v + 1));
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
+  const btn = 'px-box px-4 py-2 text-sm md:text-base font-black disabled:opacity-30';
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center p-3 md:p-6 bg-black/60">
-      <div className="px-box px-in w-full max-w-3xl p-4 md:p-6 max-h-full">
+      <div className="px-box px-in w-full max-w-2xl p-4 md:p-6">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-black text-base md:text-2xl">PATCH NOTES · 1기와 달라진 점</h2>
+          <h2 className="font-black text-base md:text-2xl">
+            {i === 0 ? '클릭온 AI 시즌2' : '1기와 달라진 점'}
+            {i > 0 && <span className="ml-2 text-xs md:text-sm" style={{ color: P.lime }}>{i} / {CHANGES.length}</span>}
+          </h2>
           <button onClick={onClose} className="px-box px-2 py-1 text-xs" aria-label="닫기">✕</button>
         </div>
-        <StatsView />
-        <ul className="mt-3 grid md:grid-cols-2 gap-x-6 gap-y-2.5">
-          {CHANGES.map((c) => <li key={c.title}><ChangeRow c={c} /></li>)}
-        </ul>
+        <div key={i} className="px-in min-h-[230px] md:min-h-[270px] flex flex-col justify-center">
+          {i === 0 ? <StatsView /> : <ChangeRow c={CHANGES[i - 1]} big />}
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <button className={btn} disabled={i === 0} onClick={() => setI(i - 1)} aria-label="이전">◀ 이전</button>
+          <div className="flex gap-2">
+            {Array.from({ length: SLIDES }, (_, k) => (
+              <button key={k} onClick={() => setI(k)} aria-label={`${k + 1}번 슬라이드`} style={{ width: 12, height: 12, background: k === i ? P.yellow : '#3a3f5e' }} />
+            ))}
+          </div>
+          <button className={btn} disabled={i === SLIDES - 1} onClick={() => setI(i + 1)} aria-label="다음">다음 ▶</button>
+        </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10px] md:text-xs" style={{ color: P.grey }}>
           <span>출처: 클릭온 AI 공식 누리집, 과기정통부 보도자료</span>
           <a href={SEASON.officialUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline" style={{ color: P.lgrey }}>
@@ -432,44 +454,16 @@ function InfoPanel({ onClose }: { onClose: () => void }) {
 
 function Overlay({ phase, onSkip, onReplay }: { phase: MotionValue<number>; onSkip: () => void; onReplay: () => void }) {
   const [ph, setPh] = useState(0);
-  const [slide, setSlide] = useState(0);
   const [panel, setPanel] = useState(false);
   useMotionValueEvent(phase, 'change', (v) => {
     setPh(v);
-    if (v === 0) { setSlide(0); setPanel(false); }
+    if (v === 0) setPanel(false);
   });
-
-  // 정보 슬라이드 자동 진행 → 끝나면 마지막 장면
-  useEffect(() => {
-    if (ph !== 1) return;
-    let t = 0;
-    const ids = SLIDE_MS.map((d, i) => {
-      t += d;
-      return setTimeout(() => (i < SLIDE_MS.length - 1 ? setSlide(i + 1) : phase.set(2)), t);
-    });
-    return () => ids.forEach(clearTimeout);
-  }, [ph, phase]);
 
   return (
     <>
       {ph < 2 && (
         <button onClick={onSkip} className="absolute top-3 right-3 z-30 px-box px-3 py-1.5 text-xs md:text-sm">SKIP ▶</button>
-      )}
-
-      {ph === 1 && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center px-3 pointer-events-none">
-          <div key={slide} className="px-box px-in w-full max-w-2xl p-4 md:p-6 text-center">
-            <p className="text-xs md:text-sm mb-3" style={{ color: P.lime }}>
-              {slide === 0 ? '클릭온 AI 시즌2' : `1기와 달라진 점 ${slide} / ${CHANGES.length}`}
-            </p>
-            {slide === 0 ? <StatsView /> : <ChangeRow c={CHANGES[slide - 1]} />}
-            <div className="mt-4 flex justify-center gap-1.5">
-              {SLIDE_MS.map((_, i) => (
-                <span key={i} style={{ width: 10, height: 10, background: i === slide ? P.yellow : '#3a3f5e' }} />
-              ))}
-            </div>
-          </div>
-        </div>
       )}
 
       {ph === 2 && (
@@ -497,7 +491,7 @@ function Overlay({ phase, onSkip, onReplay }: { phase: MotionValue<number>; onSk
         </div>
       )}
 
-      {panel && <InfoPanel onClose={() => setPanel(false)} />}
+      {panel && <InfoSlides onClose={() => setPanel(false)} />}
     </>
   );
 }

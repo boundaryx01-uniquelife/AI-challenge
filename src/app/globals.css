@@ -123,46 +123,41 @@ body {
   box-shadow: 1px 1px 0px 0px var(--border);
 }
 
-/* ===== 시즌2 "미션 컨트롤" 테마 (.mc 범위 한정) ===== */
+/* ===== 시즌2 게시판: 밝고 친근한 어린이 테마 (.mc 범위 한정) ===== */
 .mc {
-  --mc-bg: #060a18;
-  --mc-surface: rgba(255, 255, 255, 0.06);
-  --mc-line: rgba(255, 255, 255, 0.12);
-  --mc-text: #eef2ff;
-  --mc-dim: #94a3c4;
-  --mc-cyan: #5ef2ff;
-  --mc-lime: #c6ff4d;
-  --mc-violet: #8b7bff;
-  --mc-pink: #ff6ec7;
-  background: var(--mc-bg);
+  --mc-text: #1a1c2c;
+  --mc-dim: #55627f;
+  --mc-line: #1a1c2c;
+  --mc-surface: #ffffff;
+  --k-primary: #ffd23f;
+  --k-blue: #1b6fe0;
+  --k-pink: #ff5d8f;
+  --k-green: #2fb36b;
+  --k-purple: #7a5cff;
   color: var(--mc-text);
   min-height: 100vh;
-  background-image:
-    radial-gradient(60rem 40rem at 85% -10%, rgba(139, 123, 255, 0.22), transparent 60%),
-    radial-gradient(50rem 40rem at -10% 110%, rgba(94, 242, 255, 0.14), transparent 60%);
+  background: linear-gradient(180deg, #bfe6ff 0%, #e4f4ff 38%, #fff6dc 100%) fixed;
 }
+.mc h1, .mc h2, .mc h3 { font-family: 'Galmuri11', 'Outfit', system-ui, sans-serif; }
 .mc-glass {
   background: var(--mc-surface);
-  border: 1px solid var(--mc-line);
+  border: 3px solid var(--mc-line);
   border-radius: 1.25rem;
-  backdrop-filter: blur(14px);
+  box-shadow: 4px 4px 0 0 var(--mc-line);
 }
 .mc-chip {
-  padding: 0.4rem 0.9rem;
+  padding: 0.45rem 1rem;
   border-radius: 999px;
-  border: 1px solid var(--mc-line);
-  font-weight: 700;
-  font-size: 0.85rem;
-  color: var(--mc-dim);
-  background: transparent;
-  transition: all 0.2s;
+  border: 2px solid var(--mc-line);
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: var(--mc-text);
+  background: #fff;
+  transition: transform 0.15s;
   white-space: nowrap;
 }
-.mc-chip[data-on='true'] {
-  background: var(--mc-lime);
-  color: #0b1200;
-  border-color: var(--mc-lime);
-}
+.mc-chip:active { transform: translateY(2px); }
+.mc-chip[data-on='true'] { background: var(--k-primary); box-shadow: 0 3px 0 0 var(--mc-line); }
 .mc-btn {
   display: inline-flex;
   align-items: center;
@@ -170,21 +165,17 @@ body {
   gap: 0.5rem;
   padding: 0.85rem 1.4rem;
   border-radius: 999px;
-  font-weight: 800;
-  background: var(--mc-lime);
-  color: #0b1200;
-  transition: transform 0.15s, box-shadow 0.2s;
-  box-shadow: 0 0 0 0 rgba(198, 255, 77, 0.5);
-}
-.mc-btn:hover { box-shadow: 0 0 28px 2px rgba(198, 255, 77, 0.35); }
-.mc-btn:active { transform: scale(0.97); }
-.mc-btn:disabled { opacity: 0.5; }
-.mc-btn-ghost {
-  background: var(--mc-surface);
+  font-weight: 900;
+  background: var(--k-primary);
   color: var(--mc-text);
-  border: 1px solid var(--mc-line);
-  box-shadow: none;
+  border: 3px solid var(--mc-line);
+  box-shadow: 0 4px 0 0 var(--mc-line);
+  transition: transform 0.12s, box-shadow 0.12s;
 }
+.mc-btn:hover { transform: translateY(-1px); }
+.mc-btn:active { transform: translateY(4px); box-shadow: 0 0 0 0 var(--mc-line); }
+.mc-btn:disabled { opacity: 0.5; }
+.mc-btn-ghost { background: #fff; }
 
 /* ===== 픽셀아트 인트로 ===== */
 @font-face {
