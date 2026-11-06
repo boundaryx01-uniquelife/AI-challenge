@@ -219,3 +219,8 @@ body {
   border: 4px solid #f4f4f4;
   box-shadow: 4px 4px 0 0 #000;
 }
+@keyframes px-in {
+  0% { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: none; }
+}
+.px-in { animation: px-in 0.4s steps(4) both; }
