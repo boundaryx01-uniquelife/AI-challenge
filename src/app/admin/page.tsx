@@ -32,6 +32,14 @@ export default function AdminPage() {
   const [searchName, setSearchName] = useState('');
   const [showOld, setShowOld] = useState(false);
 
+  // 수정 모달 상태
+  const [editing, setEditing] = useState<Certificate | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editGrade, setEditGrade] = useState(1);
+  const [editRole, setEditRole] = useState<1 | 2>(1);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
   // Check sessionStorage on mount
   useEffect(() => {
     const savedPassword = sessionStorage.getItem('admin_password');
@@ -152,6 +160,53 @@ export default function AdminPage() {
       }
     } catch (err: any) {
       alert('서버 요청에 실패했습니다.');
+    }
+  };
+
+  const openEdit = (cert: Certificate) => {
+    setEditing(cert);
+    setEditName(cert.studentName);
+    setEditGrade(cert.grade);
+    setEditRole(cert.classNum === 2 ? 2 : 1);
+    setEditError(null);
+  };
+
+  const handleSave = async () => {
+    if (!editing) return;
+    const name = editName.trim();
+    if (name.length < 1 || name.length > 20) {
+      setEditError('이름은 1~20자로 입력해 주세요.');
+      return;
+    }
+    // 바뀐 항목만 보낸다
+    const changes: { studentName?: string; grade?: number; classNum?: number } = {};
+    if (name !== editing.studentName) changes.studentName = name;
+    if (editGrade !== editing.grade) changes.grade = editGrade;
+    if (editRole !== (editing.classNum === 2 ? 2 : 1)) changes.classNum = editRole;
+    if (Object.keys(changes).length === 0) {
+      setEditing(null);
+      return;
+    }
+
+    setIsSaving(true);
+    setEditError(null);
+    try {
+      const response = await fetch(`/api/certificates?id=${editing.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': password },
+        body: JSON.stringify(changes),
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setEditing(null);
+        fetchCertificates();
+      } else {
+        setEditError(result.error || '수정 중 문제가 발생했습니다.');
+      }
+    } catch {
+      setEditError('서버 요청에 실패했습니다.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -504,18 +559,96 @@ export default function AdminPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="mt-4 pt-2 border-t border-slate-100">
+                <div className="mt-4 pt-2 border-t border-slate-100 grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => openEdit(cert)}
+                    className="py-2 bg-yellow-300 hover:bg-yellow-400 text-slate-800 font-extrabold text-xs rounded-lg border-2 border-slate-800 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,1)] active:translate-y-0.5 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    ✏️ 수정하기
+                  </button>
                   <button
                     onClick={() => handleDelete(cert.id, cert.studentName)}
-                    className="w-full py-2 bg-red-500 hover:bg-red-600 text-white font-extrabold text-xs rounded-lg border-2 border-slate-800 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,1)] active:translate-y-0.5 active:shadow-[0.5px_0.5px_0px_0px_rgba(30,41,59,1)] transition-all flex items-center justify-center gap-1 cursor-pointer"
+                    className="py-2 bg-red-500 hover:bg-red-600 text-white font-extrabold text-xs rounded-lg border-2 border-slate-800 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,1)] active:translate-y-0.5 active:shadow-[0.5px_0.5px_0px_0px_rgba(30,41,59,1)] transition-all flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    삭제하기 (🗑️)
+                    삭제하기
                   </button>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* 수정 모달 */}
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !isSaving && setEditing(null)}>
+          <div className="w-full max-w-sm bg-white border-4 border-slate-800 rounded-2xl p-5 shadow-[5px_5px_0px_0px_rgba(30,41,59,1)] space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="font-black text-lg text-slate-800">✏️ 게시 내용 수정</h2>
+
+            <div className="space-y-1">
+              <label htmlFor="edit-name" className="text-xs font-black text-slate-500 block">이름 (실명)</label>
+              <input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                maxLength={20}
+                className="w-full px-3 py-2 text-sm font-bold border-2 border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-300"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-xs font-black text-slate-500 block">학년</span>
+              <div className="grid grid-cols-6 gap-1.5">
+                {[1, 2, 3, 4, 5, 6].map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setEditGrade(g)}
+                    className={`py-2 text-sm font-black border-2 border-slate-800 rounded-lg ${editGrade === g ? 'bg-yellow-300' : 'bg-white'}`}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-xs font-black text-slate-500 block">참여 구분</span>
+              <div className="grid grid-cols-2 gap-2">
+                {([[1, '👦 학생'], [2, '👨‍👩‍👧 학부모']] as const).map(([v, l]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setEditRole(v)}
+                    className={`py-2 text-sm font-black border-2 border-slate-800 rounded-lg ${editRole === v ? 'bg-yellow-300' : 'bg-white'}`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-400 font-bold">올린 시각과 사진은 수정되지 않습니다. 사진을 바꾸려면 삭제 후 다시 올려 주세요.</p>
+            {editError && <p className="text-sm font-extrabold text-red-600">{editError}</p>}
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setEditing(null)}
+                disabled={isSaving}
+                className="py-2.5 bg-white font-extrabold text-sm rounded-lg border-2 border-slate-800 disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="py-2.5 bg-yellow-300 font-extrabold text-sm rounded-lg border-2 border-slate-800 shadow-[2px_2px_0px_0px_rgba(30,41,59,1)] disabled:opacity-50"
+              >
+                {isSaving ? '저장 중…' : '저장하기'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>
