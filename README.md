@@ -26,7 +26,7 @@
 - **AI 마스터의 전당 🏆**: 가장 많은 인증서를 모은 TOP 10 마스터 리스트를 보여줍니다. 금, 은, 동 트로피 뱃지와 학부모 구분 태그가 지원됩니다.
 
 ### 5) 📱 교내 배포용 원클릭 QR코드 팝업 (`QRCodeModal`)
-- **실시간 주소 감지**: Vercel 배포 도메인을 자동으로 감지하여 고해상도 QR코드를 실시간 팝업으로 제공합니다.
+- **실시간 주소 감지**: 배포 도메인을 자동으로 감지하여 고해상도 QR코드를 실시간 팝업으로 제공합니다.
 - **인쇄(Print) 서식 지원**: `인쇄하기`를 누르면 교내 게시판, 교실 문앞 등에 그대로 뽑아 부착할 수 있는 깔끔한 A4 규격의 배포용 홍보 서식이 열려 자동 인쇄를 지원합니다.
 
 ---
@@ -65,14 +65,19 @@ create index idx_certificates_grade on certificates(grade);
 
 ---
 
-## 🌐 4. 환경 변수 설정 (Vercel 배포 시 필수)
+## 🌐 4. 환경 변수 설정 (Netlify 배포 시 필수)
 
-Vercel에 연동 및 배포할 때 아래 2가지 환경 변수를 주입해야 클라우드 서버에서 데이터가 영구 보존됩니다.
+Netlify → Site configuration → Environment variables 에 아래 값을 등록합니다. (Scopes는 **Builds, Functions** 모두 체크, Deploy contexts는 Production 포함)
+`NEXT_PUBLIC_` 값은 **빌드할 때** 코드에 반영되므로, 값을 바꾼 뒤에는 *Clear cache and deploy site* 로 다시 배포해야 합니다.
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL = 내 Supabase 프로젝트 URL 주소
 NEXT_PUBLIC_SUPABASE_ANON_KEY = 내 Supabase 프로젝트 anon public API Key
+ADMIN_PASSWORD = 관리자 페이지 비밀번호 (미설정 시 코드의 기본값이 쓰이므로 반드시 설정)
+SEASON_START = (선택) 인정 시작 시각. 기본값 2026-11-06T00:00:00+09:00
 ```
+
+설정이 제대로 반영됐는지는 `/api/health` 에서 확인합니다. (`supabaseConfigured: true` 여야 함)
 
 ---
 
@@ -100,12 +105,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY = 내 Supabase 프로젝트 anon public API Key
 
 ---
 
-## ☁️ 배포 (Netlify) 및 환경 변수
+## ☁️ 배포 (Netlify)
 
 - 빌드: `npm ci && npm run build` (`netlify.toml`), 플러그인 `@netlify/plugin-nextjs`
-- Netlify → Site settings → Environment variables 에 등록:
-  - `NEXT_PUBLIC_SUPABASE_URL`
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-  - `ADMIN_PASSWORD`
-  - (선택, 서버 전용) `SUPABASE_SERVICE_ROLE_KEY`
-- 로컬: 루트에 `.env.local` 생성(git 제외) 후 `npm run dev`
+- `main` 브랜치에 병합하면 Netlify가 자동 배포합니다. (배포 대상은 Netlify 한 곳뿐입니다.)
+
+## 📅 인정 기준
+
+- 2026-11-06 00:00(한국시간) **이후** 올라온 인증서만 게시판·랭킹·카운팅에 반영됩니다. 이전(1기) 자료는 숨겨지며 삭제되지는 않습니다.
+- 관리자 페이지(`/admin`)에서는 기본으로 1기 자료를 숨기고, 체크하면 보여 줍니다. 게시 내용(이름·학년·구분) 수정과 삭제가 가능합니다.
