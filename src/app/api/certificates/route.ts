@@ -238,6 +238,92 @@ export async function POST(request: Request) {
   }
 }
 
+// PATCH /api/certificates?id=... - 게시 내용 수정 (관리자 전용): 이름 / 학년 / 학생·학부모 구분
+export async function PATCH(request: Request) {
+  try {
+    const adminPassword = process.env.ADMIN_PASSWORD || 'nsns550';
+    const requestPassword = request.headers.get('x-admin-password');
+    if (!requestPassword || requestPassword !== adminPassword) {
+      return NextResponse.json({ success: false, error: '관리자 비밀번호가 일치하지 않습니다.' }, { status: 401 });
+    }
+
+    const id = new URL(request.url).searchParams.get('id');
+    if (!id) {
+      return NextResponse.json({ success: false, error: '수정할 인증서 ID가 유효하지 않습니다.' }, { status: 400 });
+    }
+
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ success: false, error: '수정할 내용이 없습니다.' }, { status: 400 });
+    }
+
+    // 보낸 항목만 검증·반영한다. (올린 시각·이미지는 수정 대상이 아님)
+    const changes: { studentName?: string; grade?: number; classNum?: number } = {};
+    if (body.studentName !== undefined) {
+      const name = typeof body.studentName === 'string' ? body.studentName.trim() : '';
+      if (name.length < 1 || name.length > 20) {
+        return NextResponse.json({ success: false, error: '이름은 1~20자로 입력해 주세요.' }, { status: 400 });
+      }
+      changes.studentName = name;
+    }
+    if (body.grade !== undefined) {
+      const grade = Number(body.grade);
+      if (!Number.isInteger(grade) || grade < 1 || grade > 6) {
+        return NextResponse.json({ success: false, error: '학년은 1~6 사이여야 합니다.' }, { status: 400 });
+      }
+      changes.grade = grade;
+    }
+    if (body.classNum !== undefined) {
+      const role = Number(body.classNum);
+      if (role !== 1 && role !== 2) {
+        return NextResponse.json({ success: false, error: '참여 구분은 학생(1) 또는 학부모(2)여야 합니다.' }, { status: 400 });
+      }
+      changes.classNum = role;
+    }
+    if (Object.keys(changes).length === 0) {
+      return NextResponse.json({ success: false, error: '수정할 내용이 없습니다.' }, { status: 400 });
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      const row: Record<string, string | number> = {};
+      if (changes.studentName !== undefined) row.student_name = changes.studentName;
+      if (changes.grade !== undefined) row.grade = changes.grade;
+      if (changes.classNum !== undefined) row.class_num = changes.classNum;
+
+      const { data, error } = await supabase.from('certificates').update(row).eq('id', id).select();
+      if (error) {
+        console.error('Supabase update error:', error);
+        throw new Error('클라우드 데이터베이스 수정에 실패했습니다. (Supabase의 수정 권한 정책을 확인해 주세요)');
+      }
+      if (!data || data.length === 0) {
+        // 대상이 없거나, 수정(UPDATE) 정책이 없어 0건이 반영된 경우
+        return NextResponse.json(
+          { success: false, error: '수정된 항목이 없습니다. 존재하지 않는 인증서이거나 Supabase에 수정(UPDATE) 권한 정책이 없습니다.' },
+          { status: 404 }
+        );
+      }
+      const u = data[0];
+      return NextResponse.json({
+        success: true,
+        data: { id: u.id, grade: u.grade, classNum: u.class_num, studentName: u.student_name, imageUrl: u.image_url, createdAt: u.created_at },
+      });
+    }
+
+    const existing = await prisma.certificate.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ success: false, error: '존재하지 않는 인증서입니다.' }, { status: 404 });
+    }
+    const updated = await prisma.certificate.update({ where: { id }, data: changes });
+    return NextResponse.json({ success: true, data: updated });
+  } catch (error) {
+    console.error('Failed to update certificate:', error);
+    return NextResponse.json(
+      { success: false, error: (error instanceof Error && error.message) || '인증서 수정 중 에러가 발생했습니다.' },
+      { status: 500 }
+    );
+  }
+}
+
 // DELETE /api/certificates - Delete a certificate (Admin Only)
 export async function DELETE(request: Request) {
   try {
